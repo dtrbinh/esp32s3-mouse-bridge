@@ -5,6 +5,7 @@
 #include "class/hid/hid_device.h"
 #include "driver/gpio.h"
 #include "esp_timer.h"
+#include "esp_task_wdt.h"
 #include "tinyusb.h"
 #include "tinyusb_default_config.h"
 
@@ -57,6 +58,8 @@ esp_err_t UsbMouseDevice::start() {
 
 void UsbMouseDevice::on_packet(const mouse_bridge::MouseReport& report,
                                uint32_t sequence, uint64_t rx_us) {
+    active_source_.store(static_cast<uint8_t>(report.source),
+                         std::memory_order_relaxed);
     portENTER_CRITICAL(&state_lock_);
     state_.on_packet(report, sequence, rx_us);
     portEXIT_CRITICAL(&state_lock_);
@@ -74,6 +77,14 @@ void UsbMouseDevice::on_resume() {
     suspended_.store(false, std::memory_order_relaxed);
     state_.on_usb_resume(static_cast<uint64_t>(esp_timer_get_time()));
     portEXIT_CRITICAL(&state_lock_);
+    resume_count_.fetch_add(1, std::memory_order_relaxed);
+}
+
+uint32_t UsbMouseDevice::timeout_count() {
+    portENTER_CRITICAL(&state_lock_);
+    const uint32_t value = state_.timeout_count();
+    portEXIT_CRITICAL(&state_lock_);
+    return value;
 }
 
 void UsbMouseDevice::task_entry(void* arg) {
@@ -81,6 +92,9 @@ void UsbMouseDevice::task_entry(void* arg) {
 }
 
 void UsbMouseDevice::task() {
+    if (esp_task_wdt_status(nullptr) == ESP_ERR_NOT_FOUND) {
+        ESP_ERROR_CHECK(esp_task_wdt_add(nullptr));
+    }
     TickType_t wake = xTaskGetTickCount();
     unsigned low_samples = 0;
     unsigned high_samples = 0;
@@ -102,6 +116,7 @@ void UsbMouseDevice::task() {
             portEXIT_CRITICAL(&state_lock_);
             send(frame);
         }
+        ESP_ERROR_CHECK(esp_task_wdt_reset());
         vTaskDelayUntil(&wake, pdMS_TO_TICKS(1));
     }
 }

@@ -7,6 +7,7 @@
 #include "esp_timer.h"
 #include "usb/usb_host.h"
 
+#include <algorithm>
 #include <span>
 
 namespace {
@@ -173,7 +174,10 @@ void UsbMouseHost::handle_connected(hid_host_device_handle_t handle) {
         active_handle_ = nullptr;
         rejected_interfaces_.fetch_add(1, std::memory_order_relaxed);
         (void)hid_host_device_close(handle);
+        return;
     }
+    previous_report_us_ = 0;
+    connections_.fetch_add(1, std::memory_order_relaxed);
 }
 
 void UsbMouseHost::handle_disconnected(hid_host_device_handle_t handle,
@@ -181,6 +185,9 @@ void UsbMouseHost::handle_disconnected(hid_host_device_handle_t handle,
     if (handle == active_handle_) {
         active_handle_ = nullptr;
         active_layout_ = {};
+        previous_report_us_ = 0;
+        observed_interval_us_.store(0, std::memory_order_relaxed);
+        disconnects_.fetch_add(1, std::memory_order_relaxed);
         arbiter_.on_disconnected(mouse_bridge::InputSource::Usb, now_us);
         if (priority_active_) {
             priority_active_ = false;
@@ -201,6 +208,13 @@ void UsbMouseHost::handle_input(const Event& event) {
         dropped_reports_.fetch_add(1, std::memory_order_relaxed);
         return;
     }
+    if (previous_report_us_ != 0 && event.timestamp_us > previous_report_us_) {
+        observed_interval_us_.store(
+            static_cast<uint32_t>(std::min<uint64_t>(
+                event.timestamp_us - previous_report_us_, UINT32_MAX)),
+            std::memory_order_relaxed);
+    }
+    previous_report_us_ = event.timestamp_us;
     if (!priority_active_) {
         priority_active_ = true;
         if (on_active_ != nullptr) on_active_(priority_context_);

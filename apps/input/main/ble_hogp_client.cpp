@@ -43,6 +43,10 @@ esp_err_t BleHogpClient::start() {
     ble_hs_cfg.sm_sc = 1;
     ble_hs_cfg.sm_mitm = 0;
     ble_store_config_init();
+    if (ble_gap_event_listener_register(&gap_listener_, gap_listener_callback,
+                                        this) != 0) {
+        return ESP_FAIL;
+    }
 
     esp_hidh_config_t config{};
     config.callback = hidh_callback;
@@ -72,10 +76,11 @@ void BleHogpClient::worker_task() {
     while (true) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         if (connecting_.exchange(true)) continue;
-        device_ = esp_hidh_dev_open(candidate_address_.data(),
-                                    ESP_HID_TRANSPORT_BLE,
-                                    candidate_address_type_);
-        if (device_ == nullptr) {
+        device_.store(esp_hidh_dev_open(candidate_address_.data(),
+                                        ESP_HID_TRANSPORT_BLE,
+                                        candidate_address_type_),
+                      std::memory_order_release);
+        if (device_.load(std::memory_order_acquire) == nullptr) {
             connecting_.store(false);
             resume_or_scan();
         }
@@ -106,7 +111,8 @@ int BleHogpClient::scan_callback(ble_gap_event* event, void* arg) {
                 break;
             }
         }
-        if (!hid || self->connecting_.load() || self->device_ != nullptr) {
+        if (!hid || self->connecting_.load() ||
+            self->device_.load(std::memory_order_acquire) != nullptr) {
             return 0;
         }
         std::copy_n(event->disc.addr.val, self->candidate_address_.size(),
@@ -115,15 +121,31 @@ int BleHogpClient::scan_callback(ble_gap_event* event, void* arg) {
         (void)ble_gap_disc_cancel();
         xTaskNotifyGive(self->worker_handle_);
     } else if (event->type == BLE_GAP_EVENT_DISC_COMPLETE &&
-               self->device_ == nullptr && !self->connecting_.load()) {
+               self->device_.load(std::memory_order_acquire) == nullptr &&
+               !self->connecting_.load()) {
         self->resume_or_scan();
+    }
+    return 0;
+}
+
+int BleHogpClient::gap_listener_callback(ble_gap_event* event, void* arg) {
+    auto* self = static_cast<BleHogpClient*>(arg);
+    if (self == nullptr || event->type != BLE_GAP_EVENT_CONN_UPDATE ||
+        event->conn_update.status != 0) {
+        return 0;
+    }
+    ble_gap_conn_desc connection{};
+    if (ble_gap_conn_find(event->conn_update.conn_handle, &connection) == 0) {
+        self->negotiated_interval_units_.store(connection.conn_itvl,
+                                               std::memory_order_relaxed);
     }
     return 0;
 }
 
 void BleHogpClient::resume_or_scan() {
     forwarding_.store(true);
-    if (!synced_.load() || device_ != nullptr || connecting_.load() ||
+    if (!synced_.load() || device_.load(std::memory_order_acquire) != nullptr ||
+        connecting_.load() ||
         ble_gap_disc_active()) {
         return;
     }
@@ -145,7 +167,9 @@ void BleHogpClient::suspend_forwarding() {
 void BleHogpClient::clear_bond() {
     forwarding_.store(false);
     (void)ble_store_clear();
-    if (device_ != nullptr) (void)esp_hidh_dev_close(device_);
+    if (auto* device = device_.load(std::memory_order_acquire)) {
+        (void)esp_hidh_dev_close(device);
+    }
 }
 
 void BleHogpClient::hidh_callback(void* handler_arg, esp_event_base_t,
@@ -163,10 +187,12 @@ void BleHogpClient::on_hidh_event(esp_hidh_event_t event,
     case ESP_HIDH_OPEN_EVENT:
         connecting_.store(false);
         if (data.open.status == ESP_OK && compile_maps(data.open.dev)) {
-            device_ = data.open.dev;
-            request_low_latency_interval(device_);
+            device_.store(data.open.dev, std::memory_order_release);
+            connections_.fetch_add(1, std::memory_order_relaxed);
+            request_low_latency_interval(data.open.dev);
             arbiter_.on_connected(mouse_bridge::InputSource::Ble, now_us);
         } else {
+            device_.store(nullptr, std::memory_order_release);
             if (data.open.dev != nullptr) (void)esp_hidh_dev_close(data.open.dev);
             resume_or_scan();
         }
@@ -175,8 +201,8 @@ void BleHogpClient::on_hidh_event(esp_hidh_event_t event,
         decode_input(data);
         break;
     case ESP_HIDH_CLOSE_EVENT:
-        if (data.close.dev == device_) {
-            device_ = nullptr;
+        if (data.close.dev == device_.load(std::memory_order_acquire)) {
+            device_.store(nullptr, std::memory_order_release);
             layout_valid_.fill(false);
             arbiter_.on_disconnected(mouse_bridge::InputSource::Ble, now_us);
         }

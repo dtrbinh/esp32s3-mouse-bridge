@@ -25,6 +25,9 @@ public:
     [[nodiscard]] uint16_t negotiated_interval_units() const {
         return negotiated_interval_units_.load(std::memory_order_relaxed);
     }
+    [[nodiscard]] uint32_t connections() const {
+        return connections_.load(std::memory_order_relaxed);
+    }
 
 private:
     static constexpr size_t kMaxMaps = 4;
@@ -34,6 +37,7 @@ private:
     static void worker_task_entry(void* arg);
     static void sync_callback();
     static int scan_callback(ble_gap_event* event, void* arg);
+    static int gap_listener_callback(ble_gap_event* event, void* arg);
     static void hidh_callback(void* handler_arg, esp_event_base_t base,
                               int32_t event_id, void* event_data);
 
@@ -54,9 +58,11 @@ private:
     std::array<bool, kMaxMaps> layout_valid_{};
     std::array<uint8_t, 6> candidate_address_{};
     uint8_t candidate_address_type_{};
-    esp_hidh_dev_t* device_{};
+    std::atomic<esp_hidh_dev_t*> device_{};
     std::atomic<bool> forwarding_{true};
     std::atomic<bool> synced_{};
     std::atomic<bool> connecting_{};
     std::atomic<uint16_t> negotiated_interval_units_{};
+    std::atomic<uint32_t> connections_{};
+    ble_gap_event_listener gap_listener_{};
 };

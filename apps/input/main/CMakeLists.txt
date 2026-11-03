@@ -15,6 +15,7 @@ idf_component_register(
         hid_parser
         mouse_bridge
         nvs_flash
+        profile_engine
         spi_link
         usb
         usb_host_hid)

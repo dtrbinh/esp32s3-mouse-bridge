@@ -1,0 +1,18 @@
+menu "Mouse bridge input"
+
+config MOUSE_BRIDGE_PROFILE_ENABLED
+    bool "Enable movement profile engine"
+    default y
+    help
+        Enables the timestamp-driven profile engine. GPIO0 on the output board
+        still provides an emergency physical-motion bypass.
+
+config MOUSE_BRIDGE_DEFAULT_PROFILE
+    int "Default movement profile (1-14)"
+    range 1 14
+    default 1
+    help
+        Selects the power-on profile. Mouse buttons 4 and 5 select profiles 1
+        and 2 at runtime.
+
+endmenu

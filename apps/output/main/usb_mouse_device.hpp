@@ -18,6 +18,14 @@ public:
                    uint64_t rx_us);
     void on_suspend();
     void on_resume();
+    [[nodiscard]] uint32_t timeout_count();
+    [[nodiscard]] uint32_t resume_count() const {
+        return resume_count_.load(std::memory_order_relaxed);
+    }
+    [[nodiscard]] mouse_bridge::InputSource active_source() const {
+        return static_cast<mouse_bridge::InputSource>(
+            active_source_.load(std::memory_order_relaxed));
+    }
 
 private:
     static constexpr size_t kTaskStackWords = 4096 / sizeof(StackType_t);
@@ -33,4 +41,6 @@ private:
     std::array<StackType_t, kTaskStackWords> task_stack_{};
     bool bypass_{};
     std::atomic<bool> suspended_{};
+    std::atomic<uint32_t> resume_count_{};
+    std::atomic<uint8_t> active_source_{};
 };

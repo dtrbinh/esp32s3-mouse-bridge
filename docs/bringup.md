@@ -1,0 +1,66 @@
+# Bring-up an toàn
+
+## 1. Build và kiểm tra trên máy phát triển
+
+Dự án dùng ESP-IDF 6.0.3. Sau khi export môi trường IDF:
+
+```bash
+cmake -S host-tests -B build/host
+cmake --build build/host
+ctest --test-dir build/host --output-on-failure
+idf.py -C apps/input build
+idf.py -C apps/output build
+```
+
+## 2. Flash từng bo riêng biệt
+
+Chưa đấu SPI và chưa bật nguồn Host VBUS. Cắm đúng một bo mỗi lần:
+
+```bash
+idf.py -C apps/input -p /dev/cu.USB_INPUT flash monitor
+idf.py -C apps/output -p /dev/cu.USB_OUTPUT flash monitor
+```
+
+Thay tên cổng serial bằng cổng thực tế. Thoát monitor bằng `Ctrl+]`.
+
+## 3. Kiểm tra bo output độc lập
+
+Kết nối riêng bo output với PC. PC phải nhận `1 kHz HID Mouse Bridge`; con trỏ không tự di chuyển và không có nút bị giữ. Firmware phát release-all khi khởi động và sau USB resume.
+
+## 4. Đấu liên kết hai bo
+
+1. Rút USB và tắt tất cả nguồn.
+2. Nối GND trước, sau đó GPIO4–GPIO8 theo [wiring.md](wiring.md).
+3. Kiểm tra thông mạch và chắc chắn không chập 5 V với 3,3 V.
+4. Cấp nguồn bo input bằng đường nguồn dành cho hệ thống, vẫn để Host VBUS tắt.
+5. Cắm bo output vào PC và xác nhận trạng thái release-all.
+6. Bật nguồn 5 V đã bảo vệ cho cổng USB-A Host.
+7. Cuối cùng mới cắm chuột dây hoặc receiver 2.4 GHz vào USB-A.
+
+Không cắm USB-C onboard của bo input trong khi Host VBUS đang hoạt động.
+
+## 5. BLE
+
+Để chuột ở BLE pairing mode, không cắm USB/receiver. Bo input quét HID Service `0x1812`, bond một peer và yêu cầu interval 7,5 ms. Muốn thay chuột đã bond, giữ BOOT trên bo input để xóa bond rồi pairing lại.
+
+## 6. Profile và bypass
+
+Profile engine mặc định bật; `CONFIG_MOUSE_BRIDGE_DEFAULT_PROFILE` chọn profile khởi động từ 1 đến 14. Nút chuột 4 chọn profile 1, nút chuột 5 chọn profile 2. Profile chỉ sinh chuyển động khi cả nút trái và phải đang giữ.
+
+Giữ BOOT trên bo output để loại chuyển động sinh bởi profile. Release BOOT để trở lại chế độ profile. Bypass không được làm mất chuyển động vật lý hay trạng thái nút.
+
+## 7. Diagnostics
+
+Mỗi bo in một dòng `MB_DIAG` tối đa mỗi 5 giây, ngoài đường report 1 ms. Giải mã log trực tiếp:
+
+```bash
+idf.py -C apps/input -p /dev/cu.USB_INPUT monitor | python3 tools/decode_diagnostics.py
+```
+
+Hoặc đọc hai file log và lấy mẫu cuối mỗi bo:
+
+```bash
+python3 tools/decode_diagnostics.py --latest input.log output.log
+```
+
+`usb_interval_us` trên input là khoảng cách report quan sát được vì USB Host HID API không công khai `bInterval`; trên output, giá trị 1000 là interval descriptor đã cấu hình. `ble_interval_units` dùng đơn vị BLE 1,25 ms.

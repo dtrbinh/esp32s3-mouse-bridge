@@ -38,6 +38,7 @@ void OutputState::on_packet(const mouse_bridge::MouseReport& report,
     buttons_ = report.buttons;
     last_packet_us_ = rx_us;
     received_ = true;
+    timeout_latched_ = false;
 }
 
 OutputFrame OutputState::tick(uint64_t now_us, bool bypass) {
@@ -47,7 +48,13 @@ OutputFrame OutputState::tick(uint64_t now_us, bool bypass) {
     if (age >= kMotionTimeoutUs) {
         x_ = y_ = bypass_x_ = bypass_y_ = wheel_ = pan_ = 0;
     }
-    if (age >= kReleaseTimeoutUs) buttons_ = 0;
+    if (age >= kReleaseTimeoutUs) {
+        buttons_ = 0;
+        if (received_ && !timeout_latched_) {
+            ++timeout_count_;
+            timeout_latched_ = true;
+        }
+    }
 
     OutputFrame frame{};
     frame.link_active = age < kReleaseTimeoutUs;
@@ -70,5 +77,7 @@ void OutputState::on_usb_suspend() {
 void OutputState::on_usb_resume(uint64_t) {
     on_usb_suspend();
     buttons_ = 0;
+    received_ = false;
+    timeout_latched_ = false;
     resume_release_pending_ = true;
 }

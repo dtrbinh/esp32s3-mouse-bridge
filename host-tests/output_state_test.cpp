@@ -48,6 +48,9 @@ int main() {
     frame = state.tick(30'000, false);
     assert(frame.buttons == 0);
     assert(!frame.link_active);
+    assert(state.timeout_count() == 1);
+    (void)state.tick(31'000, false);
+    assert(state.timeout_count() == 1);
 
     // USB resume always begins with a release-all report.
     state.on_packet(first, 4, 31'000);

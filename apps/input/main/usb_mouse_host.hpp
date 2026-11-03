@@ -38,6 +38,15 @@ public:
     [[nodiscard]] uint32_t transfer_errors() const {
         return transfer_errors_.load(std::memory_order_relaxed);
     }
+    [[nodiscard]] uint32_t observed_interval_us() const {
+        return observed_interval_us_.load(std::memory_order_relaxed);
+    }
+    [[nodiscard]] uint32_t connections() const {
+        return connections_.load(std::memory_order_relaxed);
+    }
+    [[nodiscard]] uint32_t disconnects() const {
+        return disconnects_.load(std::memory_order_relaxed);
+    }
 
 private:
     enum class EventType : uint8_t {
@@ -88,6 +97,10 @@ private:
     std::atomic<uint32_t> dropped_reports_{};
     std::atomic<uint32_t> rejected_interfaces_{};
     std::atomic<uint32_t> transfer_errors_{};
+    std::atomic<uint32_t> observed_interval_us_{};
+    std::atomic<uint32_t> connections_{};
+    std::atomic<uint32_t> disconnects_{};
+    uint64_t previous_report_us_{};
     PriorityCallback on_active_{};
     PriorityCallback on_inactive_{};
     void* priority_context_{};

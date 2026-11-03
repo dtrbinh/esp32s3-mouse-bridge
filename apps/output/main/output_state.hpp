@@ -20,6 +20,7 @@ public:
     OutputFrame tick(uint64_t now_us, bool bypass);
     void on_usb_suspend();
     void on_usb_resume(uint64_t now_us);
+    [[nodiscard]] uint32_t timeout_count() const { return timeout_count_; }
 
 private:
     static constexpr uint64_t kMotionTimeoutUs = 5'000;
@@ -35,4 +36,6 @@ private:
     uint64_t last_packet_us_{};
     bool received_{};
     bool resume_release_pending_{true};
+    bool timeout_latched_{};
+    uint32_t timeout_count_{};
 };
