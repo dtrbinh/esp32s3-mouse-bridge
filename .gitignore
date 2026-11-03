@@ -5,4 +5,6 @@
 /.idea/
 /.vscode/
 /.superpowers/
+/.toolchains/
+/**/managed_components/
 

@@ -33,3 +33,11 @@ target_sources(hid_parser_test PRIVATE
     ../components/hid_parser/src/mouse_decoder.cpp)
 add_test(NAME hid_parser COMMAND hid_parser_test)
 
+add_executable(source_arbiter_test source_arbiter_test.cpp
+    ../apps/input/main/source_arbiter.cpp)
+target_compile_features(source_arbiter_test PRIVATE cxx_std_20)
+target_include_directories(source_arbiter_test PRIVATE
+    ../apps/input/main
+    ../components/mouse_bridge/include)
+add_test(NAME source_arbiter COMMAND source_arbiter_test)
+
