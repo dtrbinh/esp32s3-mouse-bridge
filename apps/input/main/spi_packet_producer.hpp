@@ -24,6 +24,7 @@ private:
 
     static void task_entry(void* arg);
     void task();
+    bool transmit(const mouse_bridge::MouseReport& report);
 
     spi_device_handle_t device_{};
     TaskHandle_t task_handle_{};

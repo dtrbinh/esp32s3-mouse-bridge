@@ -1,6 +1,7 @@
 #include "spi_packet_producer.hpp"
 
 #include "mouse_bridge/wire_protocol.hpp"
+#include "spi_link/keepalive.hpp"
 
 #include "driver/gpio.h"
 #include "esp_attr.h"
@@ -58,40 +59,54 @@ void SpiPacketProducer::task_entry(void* arg) {
 }
 
 void SpiPacketProducer::task() {
+    mouse_bridge::MouseReport last_state{};
+    bool have_state = false;
     while (true) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(2));
+        bool sent_report = false;
         while (true) {
             mouse_bridge::MouseReport report{};
             portENTER_CRITICAL(&mailbox_lock_);
             const bool available = mailbox_.take(report);
             portEXIT_CRITICAL(&mailbox_lock_);
             if (!available) break;
-
-            tx_packet = mouse_bridge::encode_packet(report, next_sequence_++);
-            spi_transaction_t transaction{};
-            transaction.length = mouse_bridge::kWirePacketSize * 8;
-            transaction.tx_buffer = tx_packet.data();
-            if (spi_device_transmit(device_, &transaction) != ESP_OK) {
-                transfer_errors_.fetch_add(1, std::memory_order_relaxed);
-                continue;
-            }
-            packets_.fetch_add(1, std::memory_order_relaxed);
-            const uint64_t now_us = static_cast<uint64_t>(esp_timer_get_time());
-            const uint32_t latency = now_us >= report.timestamp_us
-                                         ? static_cast<uint32_t>(std::min<uint64_t>(
-                                               now_us - report.timestamp_us,
-                                               UINT32_MAX))
-                                         : 0;
-            uint32_t previous = max_link_latency_us_.load();
-            while (latency > previous &&
-                   !max_link_latency_us_.compare_exchange_weak(previous,
-                                                               latency)) {}
-
-            gpio_set_level(static_cast<gpio_num_t>(spi_link::kReadyGpio), 1);
-            esp_rom_delay_us(1);
-            gpio_set_level(static_cast<gpio_num_t>(spi_link::kReadyGpio), 0);
+            last_state = spi_link::make_keepalive(report, report.timestamp_us);
+            have_state = true;
+            sent_report = true;
+            (void)transmit(report);
+        }
+        if (!sent_report && have_state) {
+            const auto keepalive = spi_link::make_keepalive(
+                last_state, static_cast<uint64_t>(esp_timer_get_time()));
+            (void)transmit(keepalive);
         }
     }
+}
+
+bool SpiPacketProducer::transmit(const mouse_bridge::MouseReport& report) {
+    tx_packet = mouse_bridge::encode_packet(report, next_sequence_++);
+    spi_transaction_t transaction{};
+    transaction.length = mouse_bridge::kWirePacketSize * 8;
+    transaction.tx_buffer = tx_packet.data();
+    if (spi_device_transmit(device_, &transaction) != ESP_OK) {
+        transfer_errors_.fetch_add(1, std::memory_order_relaxed);
+        return false;
+    }
+    packets_.fetch_add(1, std::memory_order_relaxed);
+    const uint64_t now_us = static_cast<uint64_t>(esp_timer_get_time());
+    const uint32_t latency = now_us >= report.timestamp_us
+                                 ? static_cast<uint32_t>(std::min<uint64_t>(
+                                       now_us - report.timestamp_us,
+                                       UINT32_MAX))
+                                 : 0;
+    uint32_t previous = max_link_latency_us_.load();
+    while (latency > previous &&
+           !max_link_latency_us_.compare_exchange_weak(previous, latency)) {}
+
+    gpio_set_level(static_cast<gpio_num_t>(spi_link::kReadyGpio), 1);
+    esp_rom_delay_us(1);
+    gpio_set_level(static_cast<gpio_num_t>(spi_link::kReadyGpio), 0);
+    return true;
 }
 
 spi_link::CounterSnapshot SpiPacketProducer::counters() const {

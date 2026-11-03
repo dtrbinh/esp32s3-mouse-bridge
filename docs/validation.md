@@ -18,7 +18,7 @@ Kết quả phần mềm dưới đây đã được chạy trên host. Các m�
 | Chuột boot 125 Hz | Cắm chuột boot; nút, X/Y và wheel đúng, không report lỗi | CHƯA CHẠY |
 | Chuột dây 1 kHz | Diagnostics input xấp xỉ 1000 µs; không drop/overrun | CHƯA CHẠY |
 | Receiver 2.4 GHz 1 kHz | Như chuột dây; chuyển mode không kẹt nút | CHƯA CHẠY |
-| BLE pairing | Pair HID `0x1812`, điều khiển đúng; ghi interval thực nhận | CHƯA CHẠY |
+| BLE pairing | Pair HID `0x1812`, giữ nút đứng yên >20 ms vẫn giữ; ghi interval thực nhận | CHƯA CHẠY |
 | BLE reconnect | Tắt/bật chuột; tự nối lại bond cũ | CHƯA CHẠY |
 | Xóa BLE bond | Giữ BOOT input; peer cũ bị xóa và quét lại | CHƯA CHẠY |
 | Chuyển ba mode | Lần lượt dây → 2.4 GHz → BLE; USB luôn ưu tiên, BLE fallback sau 50 ms | CHƯA CHẠY |

@@ -64,3 +64,5 @@ python3 tools/decode_diagnostics.py --latest input.log output.log
 ```
 
 `usb_interval_us` trên input là khoảng cách report quan sát được vì USB Host HID API không công khai `bInterval`; trên output, giá trị 1000 là interval descriptor đã cấu hình. `ble_interval_units` dùng đơn vị BLE 1,25 ms.
+
+Sau report đầu tiên, bo input gửi keepalive trạng thái không có motion mỗi 2 ms khi chuột không phát report mới. Vì vậy nút đang giữ không bị timeout ở chế độ BLE; output chỉ kích hoạt failsafe khi chính liên kết SPI/bo input im lặng.
