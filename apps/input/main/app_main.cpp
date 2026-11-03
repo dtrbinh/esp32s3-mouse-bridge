@@ -7,12 +7,14 @@
 #include "usb_mouse_host.hpp"
 #include "ble_hogp_client.hpp"
 #include "bond_control.hpp"
+#include "spi_packet_producer.hpp"
 
 extern "C" void app_main() {
     static SourceArbiter arbiter;
     static UsbMouseHost usb_mouse(arbiter);
     static BleHogpClient ble_mouse(arbiter);
     static BondControl bond_control(ble_mouse);
+    static SpiPacketProducer spi_producer;
 
     usb_mouse.set_priority_callbacks(
         [](void* context) {
@@ -26,11 +28,14 @@ extern "C" void app_main() {
     ESP_ERROR_CHECK(ble_mouse.start());
     ESP_ERROR_CHECK(bond_control.start());
     ESP_ERROR_CHECK(usb_mouse.start());
+    ESP_ERROR_CHECK(spi_producer.start());
     ESP_LOGI("bridge_input", "USB and BLE mouse inputs started");
 
     while (true) {
-        // Task 7 consumes these reports and publishes them over SPI.
-        (void)arbiter.poll(static_cast<uint64_t>(esp_timer_get_time()));
+        if (const auto report =
+                arbiter.poll(static_cast<uint64_t>(esp_timer_get_time()))) {
+            spi_producer.submit(*report);
+        }
         vTaskDelay(pdMS_TO_TICKS(1));
     }
 }

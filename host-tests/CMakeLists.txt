@@ -41,3 +41,11 @@ target_include_directories(source_arbiter_test PRIVATE
     ../components/mouse_bridge/include)
 add_test(NAME source_arbiter COMMAND source_arbiter_test)
 
+add_executable(spi_mailbox_test spi_mailbox_test.cpp
+    ../components/spi_link/src/latest_report_mailbox.cpp)
+target_compile_features(spi_mailbox_test PRIVATE cxx_std_20)
+target_include_directories(spi_mailbox_test PRIVATE
+    ../components/spi_link/include
+    ../components/mouse_bridge/include)
+add_test(NAME spi_mailbox COMMAND spi_mailbox_test)
+
