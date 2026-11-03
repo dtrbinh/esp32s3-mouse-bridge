@@ -1,6 +1,7 @@
 #include "hid_parser/mouse_decoder.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <cstddef>
 
 namespace hid_parser {
@@ -25,11 +26,15 @@ int32_t extract_signed(std::span<const uint8_t> bytes, const ScalarField& field)
 }
 
 int16_t clamp_i16(int32_t value) {
-    return static_cast<int16_t>(std::clamp(value, -32768, 32767));
+    return static_cast<int16_t>(std::clamp(
+        value, static_cast<int32_t>(std::numeric_limits<int16_t>::min()),
+        static_cast<int32_t>(std::numeric_limits<int16_t>::max())));
 }
 
 int8_t clamp_i8(int32_t value) {
-    return static_cast<int8_t>(std::clamp(value, -128, 127));
+    return static_cast<int8_t>(std::clamp(
+        value, static_cast<int32_t>(std::numeric_limits<int8_t>::min()),
+        static_cast<int32_t>(std::numeric_limits<int8_t>::max())));
 }
 
 }  // namespace
