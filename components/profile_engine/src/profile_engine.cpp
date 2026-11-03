@@ -1,0 +1,117 @@
+#include "profile_engine/profile_engine.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
+namespace profile_engine {
+
+int16_t saturating_add(int16_t base, int32_t delta) {
+    const int32_t sum = static_cast<int32_t>(base) + delta;
+    return static_cast<int16_t>(std::clamp(
+        sum, static_cast<int32_t>(std::numeric_limits<int16_t>::min()),
+        static_cast<int32_t>(std::numeric_limits<int16_t>::max())));
+}
+
+bool ProfileEngine::select(size_t profile_index) {
+    if (profile_index >= default_profiles().size()) return false;
+    selected_ = profile_index;
+    deactivate();
+    return true;
+}
+
+void ProfileEngine::set_enabled(bool enabled) {
+    enabled_ = enabled;
+    if (!enabled_) deactivate();
+}
+
+void ProfileEngine::set_bypass(bool bypass) {
+    bypass_ = bypass;
+    if (bypass_) deactivate();
+}
+
+void ProfileEngine::set_crouched(bool crouched) { crouched_ = crouched; }
+
+void ProfileEngine::reset() {
+    deactivate();
+    catchup_overflows_ = 0;
+}
+
+void ProfileEngine::deactivate() {
+    active_ = false;
+    profile_complete_ = false;
+    initial_step_ = 0;
+    pair_step_ = 0;
+    started_us_ = 0;
+    next_due_us_ = 0;
+}
+
+size_t ProfileEngine::step_for_elapsed(uint64_t event_us) {
+    if (initial_step_ < 5) return initial_step_++;
+    const auto& profile = default_profiles()[selected_];
+    const uint64_t elapsed_ms = (event_us - started_us_) / 1000U;
+    size_t phase = 0;
+    while (phase < profile.phase_end_ms.size() &&
+           elapsed_ms >= profile.phase_end_ms[phase]) {
+        ++phase;
+    }
+    if (phase >= profile.phase_end_ms.size()) {
+        profile_complete_ = true;
+        return 14;
+    }
+    const size_t step = 5 + phase * 2 + pair_step_;
+    pair_step_ ^= 1U;
+    return step;
+}
+
+mouse_bridge::MouseReport ProfileEngine::process(
+    const mouse_bridge::MouseReport& physical, uint64_t now_us) {
+    auto output = physical;
+    const bool activation =
+        (physical.buttons & (kPrimaryMask | kAimMask)) ==
+        (kPrimaryMask | kAimMask);
+    if (!enabled_ || bypass_ || !activation) {
+        deactivate();
+        return output;
+    }
+
+    if (!active_) {
+        active_ = true;
+        started_us_ = now_us;
+        next_due_us_ = now_us;
+    }
+
+    const auto& profile = default_profiles()[selected_];
+    int32_t generated_x = 0;
+    int32_t generated_y = 0;
+    size_t iterations = 0;
+    while (!profile_complete_ && now_us >= next_due_us_ &&
+           iterations < kMaxCatchupSteps) {
+        const size_t step = step_for_elapsed(next_due_us_);
+        if (profile_complete_) break;
+        const float gain_x = profile.gain_x *
+                             (crouched_ ? profile.crouch_gain_x : 1.0F);
+        const float gain_y = profile.gain_y *
+                             (crouched_ ? profile.crouch_gain_y : 1.0F);
+        generated_x += static_cast<int32_t>(std::lround(profile.x[step] * gain_x));
+        generated_y += static_cast<int32_t>(std::lround(profile.y[step] * gain_y));
+        const uint64_t delay_us =
+            static_cast<uint64_t>(std::max<uint16_t>(1, profile.delay_ms[step])) *
+            1000U;
+        next_due_us_ += delay_us;
+        ++iterations;
+    }
+    if (iterations == kMaxCatchupSteps && now_us >= next_due_us_) {
+        ++catchup_overflows_;
+        output.flags = output.flags | mouse_bridge::ReportFlags::Overflow;
+        next_due_us_ = now_us + 1000U;
+    }
+    if (generated_x != 0 || generated_y != 0) {
+        output.x = saturating_add(output.x, generated_x);
+        output.y = saturating_add(output.y, generated_y);
+        output.flags = output.flags | mouse_bridge::ReportFlags::GeneratedMotion;
+    }
+    return output;
+}
+
+}  // namespace profile_engine
