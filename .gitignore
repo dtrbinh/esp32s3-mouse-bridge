@@ -1,0 +1,8 @@
+/build/
+/**/build/
+/sdkconfig
+/**/sdkconfig
+/.idea/
+/.vscode/
+/.superpowers/
+
