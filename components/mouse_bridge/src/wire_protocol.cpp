@@ -53,6 +53,8 @@ WirePacket encode_packet(const MouseReport& report, uint32_t sequence) {
     put_le(out, 22, report.buttons);
     out[24] = static_cast<uint8_t>(report.source);
     out[25] = static_cast<uint8_t>(report.flags);
+    put_le(out, 26, report.physical_x);
+    put_le(out, 28, report.physical_y);
     const uint16_t crc = crc16_ccitt_false(
         std::span<const uint8_t>(out.data(), kWirePacketSize - 2));
     put_le(out, 30, crc);
@@ -93,6 +95,8 @@ DecodeResult decode_packet(std::span<const uint8_t> bytes) {
     result.report.buttons = get_le<uint16_t>(bytes, 22);
     result.report.source = static_cast<InputSource>(bytes[24]);
     result.report.flags = static_cast<ReportFlags>(bytes[25]);
+    result.report.physical_x = get_le<int16_t>(bytes, 26);
+    result.report.physical_y = get_le<int16_t>(bytes, 28);
     result.status = DecodeStatus::Ok;
     return result;
 }

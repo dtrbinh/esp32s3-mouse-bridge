@@ -37,6 +37,8 @@ struct MouseReport {
     uint64_t timestamp_us{};
     int16_t x{};
     int16_t y{};
+    int16_t physical_x{};
+    int16_t physical_y{};
     int8_t wheel{};
     int8_t pan{};
     uint16_t buttons{};

@@ -1,0 +1,10 @@
+menu "Mouse bridge output"
+
+config MOUSE_BRIDGE_CDC_DIAGNOSTICS
+    bool "Enable CDC diagnostics and profile commands"
+    default n
+    help
+        Adds a CDC interface for development diagnostics. Keep disabled for
+        final latency measurements.
+
+endmenu

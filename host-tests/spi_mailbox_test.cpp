@@ -13,6 +13,8 @@ int main() {
     MouseReport first{};
     first.x = 30'000;
     first.y = -30'000;
+    first.physical_x = 30'000;
+    first.physical_y = -30'000;
     first.wheel = 120;
     first.pan = -120;
     first.buttons = 0x0001;
@@ -24,6 +26,8 @@ int main() {
     MouseReport newest{};
     newest.x = 30'000;
     newest.y = -30'000;
+    newest.physical_x = 30'000;
+    newest.physical_y = -30'000;
     newest.wheel = 120;
     newest.pan = -120;
     newest.buttons = 0x8002;
@@ -36,6 +40,8 @@ int main() {
     assert(mailbox.take(merged));
     assert(merged.x == INT16_MAX);
     assert(merged.y == INT16_MIN);
+    assert(merged.physical_x == INT16_MAX);
+    assert(merged.physical_y == INT16_MIN);
     assert(merged.wheel == INT8_MAX);
     assert(merged.pan == INT8_MIN);
     assert(merged.buttons == newest.buttons);

@@ -67,6 +67,8 @@ size_t ProfileEngine::step_for_elapsed(uint64_t event_us) {
 mouse_bridge::MouseReport ProfileEngine::process(
     const mouse_bridge::MouseReport& physical, uint64_t now_us) {
     auto output = physical;
+    output.physical_x = physical.x;
+    output.physical_y = physical.y;
     const bool activation =
         (physical.buttons & (kPrimaryMask | kAimMask)) ==
         (kPrimaryMask | kAimMask);

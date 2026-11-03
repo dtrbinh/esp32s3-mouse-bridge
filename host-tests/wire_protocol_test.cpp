@@ -14,6 +14,8 @@ int main() {
     input.timestamp_us = 0x0102030405060708ULL;
     input.x = std::numeric_limits<int16_t>::min();
     input.y = std::numeric_limits<int16_t>::max();
+    input.physical_x = -1234;
+    input.physical_y = 5678;
     input.wheel = -7;
     input.pan = 9;
     input.buttons = 0xA55A;

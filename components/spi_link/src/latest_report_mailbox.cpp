@@ -28,6 +28,8 @@ bool LatestReportMailbox::push(const mouse_bridge::MouseReport& report) {
 
     report_.x = saturating_add(report_.x, report.x);
     report_.y = saturating_add(report_.y, report.y);
+    report_.physical_x = saturating_add(report_.physical_x, report.physical_x);
+    report_.physical_y = saturating_add(report_.physical_y, report.physical_y);
     report_.wheel = saturating_add(report_.wheel, report.wheel);
     report_.pan = saturating_add(report_.pan, report.pan);
     report_.buttons = report.buttons;

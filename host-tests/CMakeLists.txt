@@ -49,3 +49,11 @@ target_include_directories(spi_mailbox_test PRIVATE
     ../components/mouse_bridge/include)
 add_test(NAME spi_mailbox COMMAND spi_mailbox_test)
 
+add_executable(output_state_test output_state_test.cpp
+    ../apps/output/main/output_state.cpp)
+target_compile_features(output_state_test PRIVATE cxx_std_20)
+target_include_directories(output_state_test PRIVATE
+    ../apps/output/main
+    ../components/mouse_bridge/include)
+add_test(NAME output_state COMMAND output_state_test)
+

@@ -60,6 +60,7 @@ int main() {
     const auto physical = MouseReport{.x = 12, .y = -8, .buttons = 3};
     out = engine.process(physical, 8'501'000);
     assert(out.x == 12 && out.y == -8);
+    assert(out.physical_x == 12 && out.physical_y == -8);
     assert(!mouse_bridge::has_flag(out.flags,
                                   mouse_bridge::ReportFlags::GeneratedMotion));
 
