@@ -182,6 +182,10 @@ void UsbMouseHost::handle_disconnected(hid_host_device_handle_t handle,
         active_handle_ = nullptr;
         active_layout_ = {};
         arbiter_.on_disconnected(mouse_bridge::InputSource::Usb, now_us);
+        if (priority_active_) {
+            priority_active_ = false;
+            if (on_inactive_ != nullptr) on_inactive_(priority_context_);
+        }
     }
     (void)hid_host_device_close(handle);
 }
@@ -196,6 +200,10 @@ void UsbMouseHost::handle_input(const Event& event) {
     if (status != hid_parser::DecodeStatus::Ok) {
         dropped_reports_.fetch_add(1, std::memory_order_relaxed);
         return;
+    }
+    if (!priority_active_) {
+        priority_active_ = true;
+        if (on_active_ != nullptr) on_active_(priority_context_);
     }
     arbiter_.on_report(mouse_bridge::InputSource::Usb, report,
                        event.timestamp_us);

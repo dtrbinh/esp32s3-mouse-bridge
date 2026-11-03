@@ -3,11 +3,16 @@ idf_component_register(
         "app_main.cpp"
         "source_arbiter.cpp"
         "usb_mouse_host.cpp"
+        "ble_hogp_client.cpp"
+        "bond_control.cpp"
     INCLUDE_DIRS "."
     REQUIRES
         esp_timer
+        esp_driver_gpio
+        esp_hid
         hid_parser
         mouse_bridge
+        nvs_flash
         usb
         usb_host_hid)
 

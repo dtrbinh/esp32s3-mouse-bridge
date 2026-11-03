@@ -16,9 +16,18 @@
 
 class UsbMouseHost {
 public:
+    using PriorityCallback = void (*)(void* context);
+
     explicit UsbMouseHost(SourceArbiter& arbiter) : arbiter_(arbiter) {}
 
     esp_err_t start();
+    void set_priority_callbacks(PriorityCallback on_active,
+                                PriorityCallback on_inactive,
+                                void* context) {
+        on_active_ = on_active;
+        on_inactive_ = on_inactive;
+        priority_context_ = context;
+    }
 
     [[nodiscard]] uint32_t dropped_reports() const {
         return dropped_reports_.load(std::memory_order_relaxed);
@@ -79,4 +88,8 @@ private:
     std::atomic<uint32_t> dropped_reports_{};
     std::atomic<uint32_t> rejected_interfaces_{};
     std::atomic<uint32_t> transfer_errors_{};
+    PriorityCallback on_active_{};
+    PriorityCallback on_inactive_{};
+    void* priority_context_{};
+    bool priority_active_{};
 };
