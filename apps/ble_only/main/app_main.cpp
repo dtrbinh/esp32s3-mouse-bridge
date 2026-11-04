@@ -2,6 +2,7 @@
 #include "ble_only_mode.hpp"
 #include "boot_control.hpp"
 #include "source_arbiter.hpp"
+#include "status_led.hpp"
 #include "usb_mouse_device.hpp"
 
 #include "esp_log.h"
@@ -122,11 +123,17 @@ extern "C" void app_main() {
     static UsbMouseDevice usb_mouse;
     static BleHogpClient ble_mouse(arbiter);
     static BootControl boot_control(ble_mouse, mode);
+    static StatusLed status_led(ble_mouse, mode);
     static PipelineContext pipeline{&arbiter, &mode, &usb_mouse};
     static DiagnosticsContext diagnostics{&arbiter, &ble_mouse, &mode,
                                           &usb_mouse};
 
     ESP_ERROR_CHECK(usb_mouse.start(false));
+    const esp_err_t led_result = status_led.start();
+    if (led_result != ESP_OK) {
+        ESP_LOGE("ble_only", "Status LED disabled: %s",
+                 esp_err_to_name(led_result));
+    }
     pipeline_handle = xTaskCreateStaticPinnedToCore(
         pipeline_task, "ble_only_pipeline", pipeline_stack.size(), &pipeline,
         7, pipeline_stack.data(), &pipeline_control, kRealtimeCore);

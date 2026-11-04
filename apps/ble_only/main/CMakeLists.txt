@@ -4,6 +4,8 @@ idf_component_register(
         "boot_control.cpp"
         "boot_press.cpp"
         "ble_only_mode.cpp"
+        "status_led.cpp"
+        "status_led_model.cpp"
         "../../input/main/source_arbiter.cpp"
         "../../input/main/ble_hogp_client.cpp"
         "../../output/main/output_state.cpp"
@@ -18,6 +20,7 @@ idf_component_register(
         esp_timer
         esp_driver_gpio
         esp_hid
+        espressif__led_strip
         hid_parser
         mouse_bridge
         nvs_flash
