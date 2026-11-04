@@ -19,31 +19,36 @@ int main() {
     const LedRgb green = limit_led_rgb({0, 255, 0});
 
     StatusLedModel scan;
-    assert(scan.update(false, true, 1, 10'000) == yellow);
-    assert(scan.update(false, true, 1, 10'149) == yellow);
-    assert(scan.update(false, true, 1, 10'150) == off);
-    assert(scan.update(false, true, 1, 10'299) == off);
-    assert(scan.update(false, true, 1, 10'300) == yellow);
+    assert(scan.update(false, false, true, 1, 10'000) == yellow);
+    assert(scan.update(false, false, true, 1, 10'149) == yellow);
+    assert(scan.update(false, false, true, 1, 10'150) == off);
+    assert(scan.update(false, false, true, 1, 10'299) == off);
+    assert(scan.update(false, false, true, 1, 10'300) == yellow);
+
+    StatusLedModel portal;
+    assert(portal.update(true, true, true, 7, 20'000) == yellow);
+    assert(portal.update(true, true, true, 7, 20'149) == yellow);
+    assert(portal.update(true, true, true, 7, 20'150) == off);
 
     StatusLedModel connected;
-    assert(connected.update(true, false, 1, 42'000) == green);
-    assert(connected.update(true, false, 1, 42'999) == green);
-    assert(connected.update(true, false, 1, 43'000) == off);
-    assert(connected.update(true, false, 1, 43'999) == off);
-    assert(connected.update(true, false, 1, 44'000) == green);
+    assert(connected.update(true, false, false, 1, 42'000) == green);
+    assert(connected.update(true, false, false, 1, 42'999) == green);
+    assert(connected.update(true, false, false, 1, 43'000) == off);
+    assert(connected.update(true, false, false, 1, 43'999) == off);
+    assert(connected.update(true, false, false, 1, 44'000) == green);
 
     StatusLedModel transition;
-    assert(transition.update(false, true, 1, 50'000) == yellow);
-    assert(transition.update(false, true, 1, 50'150) == off);
-    assert(transition.update(true, false, 1, 50'151) == green);
+    assert(transition.update(false, false, true, 1, 50'000) == yellow);
+    assert(transition.update(false, false, true, 1, 50'150) == off);
+    assert(transition.update(true, false, false, 1, 50'151) == green);
 
     std::array<LedRgb, 14> profiles{};
     for (size_t i = 0; i < profiles.size(); ++i) {
         StatusLedModel model;
-        profiles[i] = model.update(true, true, i + 1, 1'000);
+        profiles[i] = model.update(true, false, true, i + 1, 1'000);
         assert(profiles[i] != off);
         assert(channel_sum(profiles[i]) <= 76);
-        assert(model.update(true, true, i + 1, 99'000) == profiles[i]);
+        assert(model.update(true, false, true, i + 1, 99'000) == profiles[i]);
         for (size_t earlier = 0; earlier < i; ++earlier) {
             assert(profiles[i] != profiles[earlier]);
         }
@@ -51,8 +56,8 @@ int main() {
 
     StatusLedModel low_clamp;
     StatusLedModel high_clamp;
-    assert(low_clamp.update(true, true, 0, 0) == profiles[0]);
-    assert(high_clamp.update(true, true, 15, 0) == profiles[13]);
+    assert(low_clamp.update(true, false, true, 0, 0) == profiles[0]);
+    assert(high_clamp.update(true, false, true, 15, 0) == profiles[13]);
 
     assert(limit_led_rgb({0, 0, 0}) == off);
     const LedRgb mixed = limit_led_rgb({255, 128, 64});

@@ -62,10 +62,11 @@ LedRgb limit_led_rgb(LedRgb logical) {
     return {output[0], output[1], output[2]};
 }
 
-LedRgb StatusLedModel::update(bool connected, bool mods_enabled,
-                              size_t profile_number, uint32_t now_ms) {
+LedRgb StatusLedModel::update(bool connected, bool portal_active,
+                              bool mods_enabled, size_t profile_number,
+                              uint32_t now_ms) {
     const size_t clamped_profile = std::clamp<size_t>(profile_number, 1, 14);
-    const State next_state = !connected
+    const State next_state = (!connected || portal_active)
                                  ? State::Scanning
                                  : (mods_enabled
                                         ? State::Profile

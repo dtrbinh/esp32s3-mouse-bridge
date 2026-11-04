@@ -39,6 +39,10 @@ esp_err_t BleHogpClient::start() {
         result = nvs_flash_init();
     }
     if (result != ESP_OK) return result;
+    if (selection_delegate_ != nullptr) {
+        selection_delegate_->on_client_start(
+            static_cast<uint32_t>(esp_timer_get_time() / 1'000));
+    }
 
     result = nimble_port_init();
     if (result != ESP_OK) return result;

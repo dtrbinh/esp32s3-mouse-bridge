@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ble_hogp_client.hpp"
+#include "ble_device_manager.hpp"
 #include "ble_only_mode.hpp"
 #include "boot_press.hpp"
 
@@ -12,8 +12,8 @@
 
 class BootControl {
 public:
-    BootControl(BleHogpClient& ble, BleOnlyMode& mode)
-        : ble_(ble), mode_(mode) {}
+    BootControl(BleDeviceManager& manager, BleOnlyMode& mode)
+        : manager_(manager), mode_(mode) {}
 
     esp_err_t start(TaskHandle_t pipeline_handle);
 
@@ -22,7 +22,7 @@ private:
     static void task_entry(void* arg);
     void task();
 
-    BleHogpClient& ble_;
+    BleDeviceManager& manager_;
     BleOnlyMode& mode_;
     BootPressClassifier classifier_{};
     TaskHandle_t pipeline_handle_{};

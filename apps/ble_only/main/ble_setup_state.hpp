@@ -59,6 +59,7 @@ public:
     void on_disconnected(uint32_t now_ms);
     void on_failed(BlePeerAddress peer, BleAttemptError error);
     void on_portal_active(bool active);
+    void on_portal_start_failed();
 
     [[nodiscard]] BleSetupSnapshot snapshot() const { return snapshot_; }
     std::optional<BleSetupAction> take_action();

@@ -36,9 +36,9 @@ void BootControl::task() {
         const uint32_t now_ms =
             static_cast<uint32_t>(esp_timer_get_time() / 1'000);
         const BootAction action = classifier_.update(pressed, now_ms);
-        if (action == BootAction::ClearBond) {
-            ESP_LOGW(kTag, "hold=5s action=clear_bond");
-            ble_.clear_bond();
+        if (action == BootAction::OpenPortal) {
+            ESP_LOGI(kTag, "hold=5s action=open_portal");
+            manager_.request_portal();
         } else if (action == BootAction::NextProfile ||
                    action == BootAction::ToggleMods) {
             if (mode_.enqueue(action)) {

@@ -15,8 +15,8 @@ LedRgb limit_led_rgb(LedRgb logical);
 
 class StatusLedModel {
 public:
-    LedRgb update(bool connected, bool mods_enabled, size_t profile_number,
-                  uint32_t now_ms);
+    LedRgb update(bool connected, bool portal_active, bool mods_enabled,
+                  size_t profile_number, uint32_t now_ms);
 
 private:
     enum class State : uint8_t {

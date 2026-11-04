@@ -11,11 +11,13 @@
 
 class BleHogpClient;
 class BleOnlyMode;
+class BleDeviceManager;
 
 class StatusLed {
 public:
-    StatusLed(const BleHogpClient& ble, const BleOnlyMode& mode)
-        : ble_(ble), mode_(mode) {}
+    StatusLed(const BleHogpClient& ble, const BleOnlyMode& mode,
+              const BleDeviceManager& manager)
+        : ble_(ble), mode_(mode), manager_(manager) {}
 
     esp_err_t start();
 
@@ -26,6 +28,7 @@ private:
 
     const BleHogpClient& ble_;
     const BleOnlyMode& mode_;
+    const BleDeviceManager& manager_;
     StatusLedModel model_{};
     led_strip_handle_t strip_{};
     StaticTask_t task_control_{};

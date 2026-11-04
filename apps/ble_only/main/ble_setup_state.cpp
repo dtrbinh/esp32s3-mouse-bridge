@@ -156,6 +156,11 @@ void BleSetupState::on_portal_active(bool active) {
     snapshot_.portal_active = active;
 }
 
+void BleSetupState::on_portal_start_failed() {
+    snapshot_.portal_active = false;
+    snapshot_.portal_desired = false;
+}
+
 std::optional<BleSetupAction> BleSetupState::take_action() {
     if (action_count_ == 0) return std::nullopt;
     const BleSetupAction result = actions_[action_read_];

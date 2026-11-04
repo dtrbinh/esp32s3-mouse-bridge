@@ -24,7 +24,7 @@ int main() {
     assert(!queued.apply_next().has_value());
 
     assert(!queued.enqueue(BootAction::None));
-    assert(!queued.enqueue(BootAction::ClearBond));
+    assert(!queued.enqueue(BootAction::OpenPortal));
 
     BleOnlyMode mode(0, true);
     MouseReport activating{};

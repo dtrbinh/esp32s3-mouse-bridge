@@ -25,6 +25,7 @@ struct BleClientCommand {
 class BleSelectionDelegate {
 public:
     virtual ~BleSelectionDelegate() = default;
+    virtual void on_client_start(uint32_t) {}
     virtual void on_advertisement(
         const BleAdvertisement& advertisement,
         std::optional<BlePeerAddress> resolved_identity,

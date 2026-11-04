@@ -2,6 +2,7 @@
 
 #include "ble_hogp_client.hpp"
 #include "ble_only_mode.hpp"
+#include "ble_device_manager.hpp"
 
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -53,9 +54,10 @@ void StatusLed::task() {
     while (true) {
         const uint32_t now_ms =
             static_cast<uint32_t>(esp_timer_get_time() / 1'000);
-        const LedRgb color =
-            model_.update(ble_.connected(), mode_.mods_enabled(),
-                          mode_.selected_profile(), now_ms);
+        const auto setup = manager_.snapshot(now_ms).setup;
+        const LedRgb color = model_.update(
+            ble_.connected(), setup.portal_active, mode_.mods_enabled(),
+            mode_.selected_profile(), now_ms);
         if (!previous_valid || color != previous) {
             esp_err_t result = led_strip_set_pixel(
                 strip_, 0, color.red, color.green, color.blue);

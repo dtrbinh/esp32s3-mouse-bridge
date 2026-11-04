@@ -9,7 +9,7 @@ BootAction BootPressClassifier::update(bool pressed, uint32_t elapsed_ms) {
             return BootAction::None;
         }
         if (!terminal_action_fired_ &&
-            elapsed_ms - pressed_at_ms_ >= kClearBondThresholdMs) {
+            elapsed_ms - pressed_at_ms_ >= kOpenPortalThresholdMs) {
             terminal_action_fired_ = true;
             return BootAction::OpenPortal;
         }
@@ -25,7 +25,7 @@ BootAction BootPressClassifier::update(bool pressed, uint32_t elapsed_ms) {
     }
     if (duration_ms < kShortPressLimitMs) return BootAction::NextProfile;
     if (duration_ms >= kToggleModsThresholdMs &&
-        duration_ms < kClearBondThresholdMs) {
+        duration_ms < kOpenPortalThresholdMs) {
         return BootAction::ToggleMods;
     }
     return BootAction::None;

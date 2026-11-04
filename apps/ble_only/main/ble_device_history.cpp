@@ -56,11 +56,17 @@ size_t name_length(const std::array<char, 33>& name) {
 void BleDeviceHistory::renormalize_orders() {
     std::array<size_t, kCapacity> indices{};
     for (size_t i = 0; i < count_; ++i) indices[i] = i;
-    std::sort(indices.begin(), indices.begin() + count_,
-              [this](size_t left, size_t right) {
-                  return devices_[left].last_success_order <
-                         devices_[right].last_success_order;
-              });
+    for (size_t i = 1; i < count_; ++i) {
+        const size_t key = indices[i];
+        size_t position = i;
+        while (position > 0 &&
+               devices_[key].last_success_order <
+                   devices_[indices[position - 1]].last_success_order) {
+            indices[position] = indices[position - 1];
+            --position;
+        }
+        indices[position] = key;
+    }
     for (size_t i = 0; i < count_; ++i) {
         devices_[indices[i]].last_success_order = static_cast<uint32_t>(i + 1);
     }
@@ -133,17 +139,27 @@ BleSavedSnapshot BleDeviceHistory::snapshot(
         result.devices[i].connected =
             connected_identity == result.devices[i].identity;
     }
-    std::sort(result.devices.begin(), result.devices.begin() + result.count,
-              [](const BleSavedDevice& left, const BleSavedDevice& right) {
-                  if (left.connected != right.connected) return left.connected;
-                  if (left.last_success_order != right.last_success_order) {
-                      return left.last_success_order > right.last_success_order;
-                  }
-                  if (left.identity.type != right.identity.type) {
-                      return left.identity.type < right.identity.type;
-                  }
-                  return left.identity.bytes < right.identity.bytes;
-              });
+    const auto comes_before = [](const BleSavedDevice& left,
+                                 const BleSavedDevice& right) {
+        if (left.connected != right.connected) return left.connected;
+        if (left.last_success_order != right.last_success_order) {
+            return left.last_success_order > right.last_success_order;
+        }
+        if (left.identity.type != right.identity.type) {
+            return left.identity.type < right.identity.type;
+        }
+        return left.identity.bytes < right.identity.bytes;
+    };
+    for (size_t i = 1; i < result.count; ++i) {
+        const BleSavedDevice key = result.devices[i];
+        size_t position = i;
+        while (position > 0 &&
+               comes_before(key, result.devices[position - 1])) {
+            result.devices[position] = result.devices[position - 1];
+            --position;
+        }
+        result.devices[position] = key;
+    }
     return result;
 }
 

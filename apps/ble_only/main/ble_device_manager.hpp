@@ -8,10 +8,15 @@
 #include "portal_codec.hpp"
 
 #include <array>
-#include <atomic>
 #include <cstdint>
+#include <mutex>
 #include <optional>
 #include <string_view>
+
+#ifdef ESP_PLATFORM
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#endif
 
 enum class BleManagerDecisionKind : uint8_t {
     StartPortal,
@@ -38,6 +43,7 @@ public:
     void request_portal();
     void request_close();
     void set_portal_active(bool active);
+    void portal_start_failed();
     std::optional<BleManagerDecision> service(uint32_t now_ms);
     [[nodiscard]] PortalView snapshot(uint32_t now_ms) const;
 
@@ -53,17 +59,35 @@ public:
                            BleSelectionFailure failure,
                            uint32_t now_ms) override;
     void on_disconnected(uint32_t now_ms) override;
+    void on_client_start(uint32_t now_ms) override { start(now_ms); }
 
 private:
-    class Guard {
+    class ManagerLock {
     public:
-        explicit Guard(std::atomic_flag& lock) : lock_(lock) {
-            while (lock_.test_and_set(std::memory_order_acquire)) {}
-        }
-        ~Guard() { lock_.clear(std::memory_order_release); }
+#ifdef ESP_PLATFORM
+        ManagerLock() { handle_ = xSemaphoreCreateMutexStatic(&control_); }
+        void lock() { (void)xSemaphoreTake(handle_, portMAX_DELAY); }
+        void unlock() { (void)xSemaphoreGive(handle_); }
 
     private:
-        std::atomic_flag& lock_;
+        StaticSemaphore_t control_{};
+        SemaphoreHandle_t handle_{};
+#else
+        void lock() { mutex_.lock(); }
+        void unlock() { mutex_.unlock(); }
+
+    private:
+        std::mutex mutex_{};
+#endif
+    };
+
+    class Guard {
+    public:
+        explicit Guard(ManagerLock& lock) : lock_(lock) { lock_.lock(); }
+        ~Guard() { lock_.unlock(); }
+
+    private:
+        ManagerLock& lock_;
     };
 
     void push_extra(BleManagerDecision decision);
@@ -71,7 +95,7 @@ private:
     static BleManagerDecision translate(BleSetupAction action);
 
     BleHistoryPersistence& persistence_;
-    mutable std::atomic_flag lock_ = ATOMIC_FLAG_INIT;
+    mutable ManagerLock lock_{};
     BleDeviceCatalog catalog_{};
     BleDeviceHistory history_{};
     BleSetupState setup_{};

@@ -48,6 +48,15 @@ int main() {
     assert(invalid_close.snapshot().portal_desired);
     assert(!invalid_close.take_action().has_value());
 
+    BleSetupState portal_failure;
+    portal_failure.start(std::nullopt, 0);
+    take(portal_failure, BleSetupActionKind::StartPortal);
+    portal_failure.on_portal_start_failed();
+    assert(!portal_failure.snapshot().portal_desired);
+    assert(!portal_failure.snapshot().portal_active);
+    portal_failure.request_portal();
+    take(portal_failure, BleSetupActionKind::StartPortal);
+
     const auto mouse_a = address(1);
     const auto mouse_b = address(2);
     BleSetupState switching;

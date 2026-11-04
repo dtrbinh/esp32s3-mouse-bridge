@@ -7,7 +7,6 @@ enum class BootAction : uint8_t {
     NextProfile,
     ToggleMods,
     OpenPortal,
-    ClearBond = OpenPortal,
 };
 
 class BootPressClassifier {
@@ -17,7 +16,7 @@ public:
 private:
     static constexpr uint32_t kShortPressLimitMs = 700;
     static constexpr uint32_t kToggleModsThresholdMs = 1'500;
-    static constexpr uint32_t kClearBondThresholdMs = 5'000;
+    static constexpr uint32_t kOpenPortalThresholdMs = 5'000;
 
     uint32_t pressed_at_ms_{};
     bool pressed_{};

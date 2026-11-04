@@ -54,6 +54,11 @@ void BleDeviceManager::set_portal_active(bool active) {
     setup_.on_portal_active(active);
 }
 
+void BleDeviceManager::portal_start_failed() {
+    Guard guard(lock_);
+    setup_.on_portal_start_failed();
+}
+
 void BleDeviceManager::push_extra(BleManagerDecision decision) {
     if (extra_count_ == extra_.size()) return;
     extra_[extra_write_] = decision;
