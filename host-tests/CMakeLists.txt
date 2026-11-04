@@ -104,3 +104,9 @@ target_compile_features(ble_bond_reset_test PRIVATE cxx_std_20)
 target_include_directories(ble_bond_reset_test PRIVATE ../apps/input/main)
 add_test(NAME ble_bond_reset COMMAND ble_bond_reset_test)
 
+add_executable(status_led_model_test status_led_model_test.cpp
+    ../apps/ble_only/main/status_led_model.cpp)
+target_compile_features(status_led_model_test PRIVATE cxx_std_20)
+target_include_directories(status_led_model_test PRIVATE ../apps/ble_only/main)
+add_test(NAME status_led_model COMMAND status_led_model_test)
+
