@@ -57,15 +57,16 @@ esp_err_t BleHogpClient::start() {
     result = esp_hidh_init(&config);
     if (result != ESP_OK) return result;
 
-    worker_handle_ = xTaskCreateStatic(worker_task_entry, "ble_mouse",
-                                       worker_stack_.size(), this, 3,
-                                       worker_stack_.data(), &worker_control_);
+    worker_handle_ = xTaskCreateStaticPinnedToCore(
+        worker_task_entry, "ble_mouse", worker_stack_.size(), this, 3,
+        worker_stack_.data(), &worker_control_, 0);
     if (worker_handle_ == nullptr) return ESP_ERR_NO_MEM;
     nimble_port_freertos_init(host_task_entry);
     return ESP_OK;
 }
 
 void BleHogpClient::host_task_entry(void*) {
+    ESP_LOGI(kTag, "nimble_host core=%d", xPortGetCoreID());
     nimble_port_run();
     nimble_port_freertos_deinit();
 }
@@ -75,6 +76,7 @@ void BleHogpClient::worker_task_entry(void* arg) {
 }
 
 void BleHogpClient::worker_task() {
+    ESP_LOGI(kTag, "ble_mouse core=%d", xPortGetCoreID());
     while (true) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         if (connecting_.exchange(true)) continue;

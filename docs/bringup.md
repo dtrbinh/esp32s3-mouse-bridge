@@ -68,3 +68,7 @@ python3 tools/decode_diagnostics.py --latest input.log output.log
 Output tự bám input trong khoảng 125–1000 Hz. Report chuyển động/nút mới luôn được gửi ở USB frame 1 ms kế tiếp; chỉ report duy trì trạng thái được giảm nhịp. BLE dùng connection interval đã thương lượng, ví dụ 7,5 ms sẽ xen kẽ khoảng cách 8 ms và 7 ms để không trôi pha dài hạn.
 
 Sau report đầu tiên, bo input gửi keepalive trạng thái không có motion mỗi 2 ms khi chuột không phát report mới. Vì vậy nút đang giữ không bị timeout ở chế độ BLE; output chỉ kích hoạt failsafe khi chính liên kết SPI/bo input im lặng.
+
+### Kiểm tra phân bố hai nhân
+
+Ngay sau boot, bo input phải báo `input_pipeline`, `usb_events`, `mouse_input` và `spi_producer` trên core 1. `nimble_host`, `ble_mouse`, `bond_button` và `diagnostics` phải chạy trên core 0. Report thật đánh thức pipeline ngay; timeout 1 ms chỉ còn dùng cho BLE fallback và watchdog.

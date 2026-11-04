@@ -25,15 +25,16 @@ esp_err_t UsbMouseHost::start() {
     esp_err_t result = usb_host_install(&host_config);
     if (result != ESP_OK) return result;
 
-    if (xTaskCreateStatic(usb_task_entry, "usb_events", usb_task_stack_.size(),
-                          this, 4, usb_task_stack_.data(),
-                          &usb_task_control_) == nullptr) {
+    ESP_LOGI(kTag, "USB Host installed on core=%d", xPortGetCoreID());
+    if (xTaskCreateStaticPinnedToCore(
+            usb_task_entry, "usb_events", usb_task_stack_.size(), this, 4,
+            usb_task_stack_.data(), &usb_task_control_, 1) == nullptr) {
         return ESP_ERR_NO_MEM;
     }
-    if (xTaskCreateStatic(service_task_entry, "mouse_input",
-                          service_task_stack_.size(), this, 6,
-                          service_task_stack_.data(),
-                          &service_task_control_) == nullptr) {
+    if (xTaskCreateStaticPinnedToCore(
+            service_task_entry, "mouse_input", service_task_stack_.size(),
+            this, 6, service_task_stack_.data(), &service_task_control_,
+            1) == nullptr) {
         return ESP_ERR_NO_MEM;
     }
 
@@ -41,7 +42,7 @@ esp_err_t UsbMouseHost::start() {
     hid_config.create_background_task = true;
     hid_config.task_priority = 5;
     hid_config.stack_size = 4096;
-    hid_config.core_id = tskNO_AFFINITY;
+    hid_config.core_id = 1;
     hid_config.callback = driver_event_callback;
     hid_config.callback_arg = this;
     return hid_host_install(&hid_config);
@@ -116,6 +117,7 @@ void UsbMouseHost::service_task_entry(void* arg) {
 }
 
 void UsbMouseHost::usb_task() {
+    ESP_LOGI(kTag, "usb_events core=%d", xPortGetCoreID());
     while (true) {
         uint32_t event_flags = 0;
         (void)usb_host_lib_handle_events(portMAX_DELAY, &event_flags);
@@ -123,6 +125,7 @@ void UsbMouseHost::usb_task() {
 }
 
 void UsbMouseHost::service_task() {
+    ESP_LOGI(kTag, "mouse_input core=%d", xPortGetCoreID());
     Event event{};
     while (xQueueReceive(queue_, &event, portMAX_DELAY) == pdTRUE) {
         switch (event.type) {

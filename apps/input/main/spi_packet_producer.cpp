@@ -5,6 +5,7 @@
 
 #include "driver/gpio.h"
 #include "esp_attr.h"
+#include "esp_log.h"
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
 
@@ -12,6 +13,7 @@
 
 namespace {
 DMA_ATTR mouse_bridge::WirePacket tx_packet;
+constexpr char kTag[] = "spi_producer";
 }
 
 esp_err_t SpiPacketProducer::start() {
@@ -40,9 +42,9 @@ esp_err_t SpiPacketProducer::start() {
     result = spi_bus_add_device(SPI2_HOST, &device, &device_);
     if (result != ESP_OK) return result;
 
-    task_handle_ = xTaskCreateStatic(task_entry, "spi_producer",
-                                     task_stack_.size(), this, 7,
-                                     task_stack_.data(), &task_control_);
+    task_handle_ = xTaskCreateStaticPinnedToCore(
+        task_entry, "spi_producer", task_stack_.size(), this, 8,
+        task_stack_.data(), &task_control_, 1);
     return task_handle_ != nullptr ? ESP_OK : ESP_ERR_NO_MEM;
 }
 
@@ -59,6 +61,7 @@ void SpiPacketProducer::task_entry(void* arg) {
 }
 
 void SpiPacketProducer::task() {
+    ESP_LOGI(kTag, "core=%d", xPortGetCoreID());
     mouse_bridge::MouseReport last_state{};
     bool have_state = false;
     while (true) {

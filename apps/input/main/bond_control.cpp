@@ -1,6 +1,7 @@
 #include "bond_control.hpp"
 
 #include "driver/gpio.h"
+#include "esp_log.h"
 
 namespace {
 constexpr gpio_num_t kBootPin = GPIO_NUM_0;
@@ -15,8 +16,9 @@ esp_err_t BondControl::start() {
     config.pull_up_en = GPIO_PULLUP_ENABLE;
     esp_err_t result = gpio_config(&config);
     if (result != ESP_OK) return result;
-    return xTaskCreateStatic(task_entry, "bond_button", task_stack_.size(),
-                             this, 2, task_stack_.data(), &task_control_) !=
+    return xTaskCreateStaticPinnedToCore(
+               task_entry, "bond_button", task_stack_.size(), this, 2,
+               task_stack_.data(), &task_control_, 0) !=
                    nullptr
                ? ESP_OK
                : ESP_ERR_NO_MEM;
@@ -27,6 +29,7 @@ void BondControl::task_entry(void* arg) {
 }
 
 void BondControl::task() {
+    ESP_LOGI("bond_button", "core=%d", xPortGetCoreID());
     unsigned held_samples = 0;
     bool fired = false;
     while (true) {
