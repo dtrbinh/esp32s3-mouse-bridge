@@ -72,3 +72,5 @@ Sau report đầu tiên, bo input gửi keepalive trạng thái không có motio
 ### Kiểm tra phân bố hai nhân
 
 Ngay sau boot, bo input phải báo `input_pipeline`, `usb_events`, `mouse_input` và `spi_producer` trên core 1. `nimble_host`, `ble_mouse`, `bond_button` và `diagnostics` phải chạy trên core 0. Report thật đánh thức pipeline ngay; timeout 1 ms chỉ còn dùng cho BLE fallback và watchdog.
+
+Bo output phải báo `spi_consumer` và `diagnostics` trên core 0, `usb_mouse` trên core 1. TinyUSB cũng được cấu hình cố định ở core 1. `max_link_latency_us` trên output đo từ lúc nhận xong packet SPI đến lần HID scheduler đầu tiên xử lý packet đó.

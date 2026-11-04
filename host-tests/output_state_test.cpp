@@ -8,6 +8,25 @@ using mouse_bridge::MouseReport;
 using mouse_bridge::ReportFlags;
 
 int main() {
+    // A busy HID endpoint must not lose reports that arrive before tick().
+    OutputState busy_state;
+    (void)busy_state.tick(0, false);
+    MouseReport busy_first{};
+    busy_first.x = 7;
+    busy_first.y = -4;
+    busy_first.wheel = 1;
+    busy_first.buttons = 1;
+    busy_state.on_packet(busy_first, 1, 1'000);
+    MouseReport busy_second{};
+    busy_second.x = 5;
+    busy_second.y = 2;
+    busy_second.wheel = 3;
+    busy_second.buttons = 2;
+    busy_state.on_packet(busy_second, 2, 1'500);
+    auto busy_frame = busy_state.tick(2'000, false);
+    assert(busy_frame.x == 12 && busy_frame.y == -2);
+    assert(busy_frame.wheel == 4 && busy_frame.buttons == 2);
+
     OutputState state;
     auto frame = state.tick(0, false);
     assert(frame.x == 0 && frame.y == 0 && frame.buttons == 0);

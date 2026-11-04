@@ -5,6 +5,7 @@
 #include "driver/gpio.h"
 #include "esp_attr.h"
 #include "esp_intr_alloc.h"
+#include "esp_log.h"
 #include "esp_timer.h"
 
 #include <span>
@@ -12,6 +13,7 @@
 namespace {
 DMA_ATTR uint8_t rx_buffers[spi_link::kDmaQueueDepth]
                            [mouse_bridge::kWirePacketSize]{};
+constexpr char kTag[] = "spi_consumer";
 }
 
 esp_err_t SpiPacketConsumer::start() {
@@ -38,9 +40,9 @@ esp_err_t SpiPacketConsumer::start() {
         if (result != ESP_OK) return result;
     }
 
-    task_handle_ = xTaskCreateStatic(task_entry, "spi_consumer",
-                                     task_stack_.size(), this, 8,
-                                     task_stack_.data(), &task_control_);
+    task_handle_ = xTaskCreateStaticPinnedToCore(
+        task_entry, "spi_consumer", task_stack_.size(), this, 8,
+        task_stack_.data(), &task_control_, 0);
     if (task_handle_ == nullptr) return ESP_ERR_NO_MEM;
 
     gpio_config_t ready{};
@@ -68,6 +70,7 @@ void SpiPacketConsumer::task_entry(void* arg) {
 }
 
 void SpiPacketConsumer::task() {
+    ESP_LOGI(kTag, "core=%d", xPortGetCoreID());
     while (true) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         spi_slave_transaction_t* completed = nullptr;

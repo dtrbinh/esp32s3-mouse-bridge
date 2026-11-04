@@ -34,6 +34,15 @@ int main() {
     assert(!scheduler.due(11'999));
     assert(scheduler.due(12'000));
 
+    // Coalesced event notifications do not advance phase before a send.
+    scheduler.reset();
+    scheduler.on_packet(packet(4'000, false), 1'000);
+    scheduler.on_packet(packet(4'000, false), 1'100);
+    assert(scheduler.due(1'100));
+    scheduler.on_sent(2'000);
+    assert(!scheduler.due(5'999));
+    assert(scheduler.due(6'000));
+
     // Safety releases bypass a slow nominal cadence.
     scheduler.on_sent(12'000);
     scheduler.request_immediate();

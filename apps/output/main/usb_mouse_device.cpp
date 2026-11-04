@@ -4,6 +4,7 @@
 
 #include "class/hid/hid_device.h"
 #include "driver/gpio.h"
+#include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_task_wdt.h"
 #include "tinyusb.h"
@@ -14,6 +15,7 @@
 
 namespace {
 constexpr gpio_num_t kBypassPin = GPIO_NUM_0;
+constexpr char kTag[] = "usb_mouse";
 UsbMouseDevice* device_instance;
 
 struct __attribute__((packed)) ExtendedMouseReport {
@@ -43,6 +45,8 @@ esp_err_t UsbMouseDevice::start() {
     if (result != ESP_OK) return result;
 
     tinyusb_config_t config = TINYUSB_DEFAULT_CONFIG();
+    config.task.xCoreID = 1;
+    config.task.priority = 5;
     config.descriptor.device = nullptr;
     config.descriptor.full_speed_config = mouse_hid_configuration_descriptor;
     config.descriptor.string = mouse_hid_string_descriptor;
@@ -50,10 +54,10 @@ esp_err_t UsbMouseDevice::start() {
     result = tinyusb_driver_install(&config);
     if (result != ESP_OK) return result;
 
-    return xTaskCreateStatic(task_entry, "usb_mouse", task_stack_.size(), this,
-                             8, task_stack_.data(), &task_control_) != nullptr
-               ? ESP_OK
-               : ESP_ERR_NO_MEM;
+    task_handle_ = xTaskCreateStaticPinnedToCore(
+        task_entry, "usb_mouse", task_stack_.size(), this, 8,
+        task_stack_.data(), &task_control_, 1);
+    return task_handle_ != nullptr ? ESP_OK : ESP_ERR_NO_MEM;
 }
 
 void UsbMouseDevice::on_packet(const mouse_bridge::MouseReport& report,
@@ -63,7 +67,9 @@ void UsbMouseDevice::on_packet(const mouse_bridge::MouseReport& report,
     portENTER_CRITICAL(&state_lock_);
     state_.on_packet(report, sequence, rx_us);
     scheduler_.on_packet(report, rx_us);
+    if (pending_stage_rx_us_ == 0) pending_stage_rx_us_ = rx_us;
     portEXIT_CRITICAL(&state_lock_);
+    notify_packet_available();
 }
 
 void UsbMouseDevice::on_suspend() {
@@ -72,6 +78,7 @@ void UsbMouseDevice::on_suspend() {
     state_.on_usb_suspend();
     scheduler_.reset();
     portEXIT_CRITICAL(&state_lock_);
+    notify_packet_available();
 }
 
 void UsbMouseDevice::on_resume() {
@@ -81,6 +88,11 @@ void UsbMouseDevice::on_resume() {
     scheduler_.reset();
     portEXIT_CRITICAL(&state_lock_);
     resume_count_.fetch_add(1, std::memory_order_relaxed);
+    notify_packet_available();
+}
+
+void UsbMouseDevice::notify_packet_available() {
+    if (task_handle_ != nullptr) xTaskNotifyGive(task_handle_);
 }
 
 uint32_t UsbMouseDevice::timeout_count() {
@@ -102,29 +114,48 @@ void UsbMouseDevice::task_entry(void* arg) {
 }
 
 void UsbMouseDevice::task() {
+    ESP_LOGI(kTag, "core=%d", xPortGetCoreID());
     if (esp_task_wdt_status(nullptr) == ESP_ERR_NOT_FOUND) {
         ESP_ERROR_CHECK(esp_task_wdt_add(nullptr));
     }
-    TickType_t wake = xTaskGetTickCount();
     unsigned low_samples = 0;
     unsigned high_samples = 0;
+    uint64_t next_button_sample_us = 0;
     while (true) {
-        const bool pressed = gpio_get_level(kBypassPin) == 0;
-        low_samples = pressed ? std::min(low_samples + 1,
+        (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1));
+        const uint64_t now_us = static_cast<uint64_t>(esp_timer_get_time());
+        if (now_us >= next_button_sample_us) {
+            next_button_sample_us = now_us + 1'000;
+            const bool pressed = gpio_get_level(kBypassPin) == 0;
+            low_samples = pressed
+                              ? std::min(low_samples + 1,
                                          kBypassDebounceSamples)
                               : 0;
-        high_samples = pressed ? 0
+            high_samples = pressed
+                               ? 0
                                : std::min(high_samples + 1,
                                           kBypassDebounceSamples);
-        if (low_samples == kBypassDebounceSamples) bypass_ = true;
-        if (high_samples == kBypassDebounceSamples) bypass_ = false;
+            if (low_samples == kBypassDebounceSamples) bypass_ = true;
+            if (high_samples == kBypassDebounceSamples) bypass_ = false;
+        }
 
-        const uint64_t now_us = static_cast<uint64_t>(esp_timer_get_time());
         const bool usb_ready = !suspended_.load(std::memory_order_relaxed) &&
                                tud_hid_ready();
         bool report_due = false;
         OutputFrame frame{};
         portENTER_CRITICAL(&state_lock_);
+        if (pending_stage_rx_us_ != 0) {
+            const uint32_t latency =
+                now_us >= pending_stage_rx_us_
+                    ? static_cast<uint32_t>(std::min<uint64_t>(
+                          now_us - pending_stage_rx_us_, UINT32_MAX))
+                    : 0;
+            uint32_t previous = max_stage_latency_us_.load();
+            while (latency > previous &&
+                   !max_stage_latency_us_.compare_exchange_weak(previous,
+                                                                latency)) {}
+            pending_stage_rx_us_ = 0;
+        }
         if (state_.update_timeouts(now_us)) scheduler_.request_immediate();
         if (usb_ready && scheduler_.due(now_us)) {
             frame = state_.tick(now_us, bypass_);
@@ -136,7 +167,6 @@ void UsbMouseDevice::task() {
             send(frame);
         }
         ESP_ERROR_CHECK(esp_task_wdt_reset());
-        vTaskDelayUntil(&wake, pdMS_TO_TICKS(1));
     }
 }
 

@@ -21,6 +21,9 @@ public:
     void on_resume();
     [[nodiscard]] uint32_t timeout_count();
     [[nodiscard]] uint16_t output_interval_us();
+    [[nodiscard]] uint32_t max_stage_latency_us() const {
+        return max_stage_latency_us_.load(std::memory_order_relaxed);
+    }
     [[nodiscard]] uint32_t resume_count() const {
         return resume_count_.load(std::memory_order_relaxed);
     }
@@ -36,14 +39,18 @@ private:
     static void task_entry(void* arg);
     void task();
     void send(const OutputFrame& frame);
+    void notify_packet_available();
 
     OutputState state_{};
     ReportScheduler scheduler_{};
     portMUX_TYPE state_lock_ = portMUX_INITIALIZER_UNLOCKED;
     StaticTask_t task_control_{};
     std::array<StackType_t, kTaskStackWords> task_stack_{};
+    TaskHandle_t task_handle_{};
+    uint64_t pending_stage_rx_us_{};
     bool bypass_{};
     std::atomic<bool> suspended_{};
     std::atomic<uint32_t> resume_count_{};
     std::atomic<uint8_t> active_source_{};
+    std::atomic<uint32_t> max_stage_latency_us_{};
 };

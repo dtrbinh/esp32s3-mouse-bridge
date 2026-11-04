@@ -6,7 +6,7 @@ Kết quả phần mềm dưới đây đã được chạy trên host. Các m�
 
 | Kiểm tra | Kết quả hiện tại | Bằng chứng |
 |---|---|---|
-| Host unit tests | PASS | 7/7 CTest |
+| Host unit tests | PASS | 10/10 CTest |
 | Firmware input ESP-IDF | PASS | build ESP-IDF 6.0.3 |
 | Firmware output ESP-IDF | PASS | build ESP-IDF 6.0.3; HID endpoint 8 byte, interval 1 ms |
 | Whitespace/static diff | PASS | `git diff --check` |
@@ -23,6 +23,7 @@ Kết quả phần mềm dưới đây đã được chạy trên host. Các m�
 | Xóa BLE bond | Giữ BOOT input; peer cũ bị xóa và quét lại | CHƯA CHẠY |
 | Chuyển ba mode | Lần lượt dây → 2.4 GHz → BLE; USB luôn ưu tiên, BLE fallback sau 50 ms | CHƯA CHẠY |
 | Adaptive polling | Lần lượt chọn 125/250/500/1000 Hz; diagnostics output lần lượt khoảng 8000/4000/2000/1000 µs, sự kiện mới không chờ hết chu kỳ | CHƯA CHẠY |
+| Dual-core affinity | Log input đúng CPU0/CPU1 và output đúng CPU0/CPU1 như `bringup.md`; không có watchdog reset | CHƯA CHẠY |
 | Rút khi giữ nút | Giữ nút rồi rút nguồn vào; PC release trong tối đa 20 ms | CHƯA CHẠY |
 | Emergency bypass | Profile đang chạy, giữ BOOT output; chỉ còn chuyển động vật lý | CHƯA CHẠY |
 | Mất SPI | Ngắt SCLK/MOSI; motion xóa sau 5 ms, nút release sau 20 ms | CHƯA CHẠY |
@@ -34,7 +35,7 @@ Kết quả phần mềm dưới đây đã được chạy trên host. Các m�
 
 ## Đo latency
 
-Mục tiêu thêm của cầu nối dây/2.4 GHz là 1–2 ms. Hiện tại **chưa xác minh** vì hai clock ESP32 độc lập; counter firmware chỉ đo từ timestamp input đến lúc SPI master hoàn tất trên cùng bo.
+Mục tiêu thêm của cầu nối dây/2.4 GHz là 1–2 ms. Hiện tại **chưa xác minh** vì hai clock ESP32 độc lập. Counter input đo từ timestamp report đến lúc SPI master hoàn tất; counter output đo từ lúc nhận packet SPI đến lần HID scheduler đầu tiên xử lý packet. Hai counter nội bộ không thay thế phép đo end-to-end bằng logic analyzer.
 
 Dùng logic analyzer ít nhất ba kênh:
 
