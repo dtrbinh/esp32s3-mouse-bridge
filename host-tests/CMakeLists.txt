@@ -162,3 +162,10 @@ target_include_directories(ble_device_manager_test PRIVATE
     ../apps/input/main)
 add_test(NAME ble_device_manager COMMAND ble_device_manager_test)
 
+add_executable(portal_lifecycle_test portal_lifecycle_test.cpp
+    ../apps/ble_only/main/portal_lifecycle.cpp)
+target_compile_features(portal_lifecycle_test PRIVATE cxx_std_20)
+target_include_directories(portal_lifecycle_test PRIVATE
+    ../apps/ble_only/main)
+add_test(NAME portal_lifecycle COMMAND portal_lifecycle_test)
+

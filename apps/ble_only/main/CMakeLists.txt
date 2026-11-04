@@ -11,6 +11,11 @@ idf_component_register(
         "ble_device_store.cpp"
         "ble_device_manager.cpp"
         "ble_setup_state.cpp"
+        "captive_dns.cpp"
+        "captive_dns_codec.cpp"
+        "portal_codec.cpp"
+        "portal_lifecycle.cpp"
+        "setup_portal.cpp"
         "../../input/main/source_arbiter.cpp"
         "../../input/main/ble_hogp_client.cpp"
         "../../output/main/output_state.cpp"
@@ -25,8 +30,12 @@ idf_component_register(
         esp_timer
         esp_driver_gpio
         esp_hid
+        esp_http_server
+        esp_netif
+        esp_wifi
         espressif__led_strip
         hid_parser
         mouse_bridge
         nvs_flash
-        profile_engine)
+        profile_engine
+        lwip)
