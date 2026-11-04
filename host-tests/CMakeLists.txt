@@ -82,3 +82,9 @@ target_sources(report_scheduler_test PRIVATE
     ../components/mouse_bridge/src/cadence.cpp)
 add_test(NAME report_scheduler COMMAND report_scheduler_test)
 
+add_executable(boot_press_test boot_press_test.cpp
+    ../apps/ble_only/main/boot_press.cpp)
+target_compile_features(boot_press_test PRIVATE cxx_std_20)
+target_include_directories(boot_press_test PRIVATE ../apps/ble_only/main)
+add_test(NAME boot_press COMMAND boot_press_test)
+
