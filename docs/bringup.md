@@ -17,6 +17,8 @@ idf.py -C apps/ble_only build
 
 Firmware `apps/ble_only` không cần bo thứ hai, dây SPI hoặc nguồn VBUS Host.
 Cắm USB-C onboard trực tiếp vào PC; cáp này vừa cấp nguồn vừa là USB HID output.
+Bản build hiện tại dành cho ESP32-S3 **N8R8**, dùng flash 8 MB, Octal PSRAM và
+partition ứng dụng 3 MB. Không flash image này lên biến thể có flash nhỏ hơn.
 
 Lần đầu hoặc khi cần vào download mode, giữ BOOT, nhấn rồi thả RESET, sau đó
 thả BOOT. Xác định cổng vừa xuất hiện và flash:
@@ -26,15 +28,39 @@ idf.py -C apps/ble_only -p /dev/cu.usbmodem_BLE_ONLY flash
 ```
 
 Sau reset, cổng download có thể biến mất vì cùng USB-C đã chuyển sang thiết bị
-HID `Adaptive HID Mouse Bridge`; đây là hành vi bình thường. Đặt chuột vào BLE
-pairing mode, sau đó kiểm tra con trỏ, nút, wheel và pan.
+HID `Adaptive HID Mouse Bridge`; đây là hành vi bình thường.
+
+### Chọn chuột bằng captive portal
+
+Ở lần boot đầu, board chưa có thiết bị đã chọn nên mở ngay Wi-Fi
+`MouseBridge-Setup-XXXX` (`XXXX` là hậu tố MAC):
+
+1. Đặt Freewolf X7 hoặc chuột khác vào BLE pairing mode.
+2. Kết nối điện thoại/laptop vào Wi-Fi trên. AP mở, chỉ hoạt động cục bộ và
+   không cung cấp Internet.
+3. Trang cấu hình thường tự mở. Nếu hệ điều hành không hiện captive window,
+   truy cập `http://192.168.4.1/`.
+4. Phần **Đã kết nối trước đây** xếp thiết bị đang kết nối lên đầu. Phần
+   **Thiết bị ở gần** hiển thị kết quả scan, kể cả thiết bị không quảng bá UUID
+   HOGP `0x1812`.
+5. Chọn Connect. Firmware ngắt peer cũ trước nếu cần, kết nối đúng địa chỉ đã
+   chọn, kiểm tra HID report map, rồi lưu identity đã resolve.
+6. Sau khi xác thực thành công, trang báo thành công trong 3 giây rồi dừng
+   HTTP, DNS, AP và Wi-Fi driver. Kiểm tra con trỏ, nút, wheel và pan.
+
+Disconnect bỏ lựa chọn hiện tại nhưng giữ lịch sử/bond. Forget xóa thiết bị
+khỏi lịch sử và xóa bond tương ứng. `Đóng cấu hình` chỉ hợp lệ khi vẫn có một
+target đã lưu hoặc đang kết nối. Nếu có target đã chọn nhưng reconnect thất
+bại, portal tự mở sau 10 giây. Giữ BOOT đủ 5 giây có thể mở portal thủ công bất
+kỳ lúc nào mà không xóa lịch sử.
 
 BOOT có ba hành động, mỗi lần nhấn chỉ phát tối đa một hành động:
 
 - Nhấn dưới 700 ms: chuyển profile 1 → 2 → … → 14 → 1.
 - Giữ từ 700 ms đến dưới 1,5 giây: không làm gì.
 - Giữ ít nhất 1,5 giây nhưng dưới 5 giây rồi thả: bật/tắt toàn bộ mod.
-- Giữ đủ 5 giây: xóa bond ngay và quét lại; khi thả không đổi profile/mod.
+- Giữ đủ 5 giây: mở portal chọn chuột; không xóa bond/lịch sử và khi thả không
+  đổi profile/mod.
 
 Profile/mod khởi động ở trạng thái bật. Khi mod tắt, X/Y, nút, wheel và pan đi
 thẳng từ chuột BLE sang PC. Vì USB-C onboard đang được TinyUSB HID chiếm dụng,
@@ -45,7 +71,7 @@ WS2812 onboard dùng GPIO21 và có ba trạng thái ưu tiên:
 
 | Trạng thái | LED |
 |---|---|
-| Đang scan, reconnect hoặc vừa xóa bond | Vàng, 150 ms sáng / 150 ms tắt |
+| Đang scan, reconnect hoặc portal đang mở | Vàng, 150 ms sáng / 150 ms tắt |
 | Đã kết nối, mod tắt | Xanh lá, 1 giây sáng / 1 giây tắt |
 | Đã kết nối, mod bật | Sáng liên tục theo màu profile |
 
@@ -55,8 +81,10 @@ Tất cả màu dùng chung giới hạn `R+G+B ≤ 76`, tương đương 10% t�
 ba kênh. Nếu driver LED lỗi, firmware chỉ ghi log và BLE/USB HID vẫn tiếp tục.
 GPIO có thể đổi bằng `CONFIG_BLE_ONLY_LED_GPIO` nếu dùng biến thể board khác.
 
-Phân bố mong đợi: `nimble_host`, `ble_mouse`, `ble_only_boot`, `status_led` và
-`ble_only_diag` ở core 0; `ble_only_pipeline`, `usb_mouse` và TinyUSB ở core 1.
+Phân bố mong đợi: `nimble_host`, `ble_mouse`, `ble_only_setup`, Wi-Fi/DNS,
+`ble_only_boot`, `status_led` và `ble_only_diag` ở core 0;
+`ble_only_pipeline`, `usb_mouse` và TinyUSB ở core 1. Khi portal đã đóng, Wi-Fi
+phải biến mất và không còn coexistence traffic trên đường HID.
 
 ## 2. Flash từng bo riêng biệt
 

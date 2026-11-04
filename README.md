@@ -1,6 +1,7 @@
 # Dual ESP32-S3 Mouse Bridge
 
-Hai firmware ESP-IDF cho hai bo Waveshare ESP32-S3-Zero N4R2:
+Hai firmware ESP-IDF cho hai bo ESP32-S3. Bản BLE-only hiện được cấu hình cho
+biến thể **N8R8: flash 8 MB + Octal PSRAM 8 MB**:
 
 - `apps/input`: nhận chuột dây hoặc receiver 2.4 GHz bằng USB Host, hoặc chuột BLE HID; chuẩn hóa report và gửi qua SPI.
 - `apps/output`: nhận SPI và xuất USB HID mouse sang máy tính với endpoint interval 1 ms.
@@ -60,11 +61,18 @@ Xem [wiring](docs/wiring.md), [bring-up](docs/bringup.md) và [validation](docs/
 Profile engine mặc định bật. Nút chuột 4/5 chọn profile 1/2; các profile 1–14 có thể chọn làm mặc định qua `CONFIG_MOUSE_BRIDGE_DEFAULT_PROFILE`. Giữ BOOT trên bo output để bypass chuyển động sinh nhưng vẫn giữ pass-through vật lý.
 
 Trong firmware một bo `ble_only`, BOOT nhấn dưới 700 ms chuyển profile, giữ
-1,5–4,999 giây rồi thả để bật/tắt mod, và giữ đủ 5 giây để xóa BLE bond.
+1,5–4,999 giây rồi thả để bật/tắt mod, và giữ đủ 5 giây để mở portal chọn
+chuột mà không xóa lịch sử/bond.
 Khoảng 700–1.499 ms cố ý không thực hiện hành động.
 
+Khi chưa có chuột đã chọn, board tạo Wi-Fi mở `MouseBridge-Setup-XXXX` và mở
+captive portal tại `192.168.4.1`. Trang có hai phần: thiết bị đã lưu (thiết bị
+đang kết nối ở đầu) và thiết bị gần đây; hỗ trợ Connect, Disconnect, Forget và
+đóng cấu hình. AP chỉ dùng cục bộ, không có Internet, và tắt hoàn toàn sau 3
+giây khi kết nối đã được xác thực.
+
 WS2812 onboard GPIO21 báo trạng thái ở giới hạn tổng RGB 10%: vàng nhấp nháy
-300 ms khi đang scan, xanh lá nhấp nháy 2 giây khi đã kết nối nhưng mod tắt,
+300 ms khi đang scan/portal, xanh lá nhấp nháy 2 giây khi đã kết nối nhưng mod tắt,
 và sáng liên tục bằng màu riêng của profile 1–14 khi mod bật.
 
 Hai firmware in snapshot `MB_DIAG` mỗi 5 giây. Decoder:

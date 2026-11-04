@@ -6,10 +6,10 @@ Kết quả phần mềm dưới đây đã được chạy trên host. Các m�
 
 | Kiểm tra | Kết quả hiện tại | Bằng chứng |
 |---|---|---|
-| Host unit tests | PASS | 14/14 CTest |
-| Firmware input ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x9a2f0`, còn 40% partition |
+| Host unit tests | PASS | 21/21 CTest |
+| Firmware input ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x9aaf0`, còn 40% partition |
 | Firmware output ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x3afe0`, còn 77% partition; HID endpoint 8 byte, interval 1 ms |
-| Firmware BLE-only ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x90d10`, còn 43% partition; BLE central + USB HID + WS2812 trên một bo |
+| Firmware BLE-only N8R8 ESP-IDF | PASS | performance build ESP-IDF 6.0.3; `0x1159c0`, còn 64% partition 3 MB; flash 8 MB + Octal PSRAM |
 | Whitespace/static diff | PASS | `git diff --check` |
 
 ## Kiểm tra phần cứng BLE-only một bo
@@ -17,19 +17,31 @@ Kết quả phần mềm dưới đây đã được chạy trên host. Các m�
 | Ca kiểm tra | Cách thực hiện / tiêu chí PASS | Trạng thái |
 |---|---|---|
 | USB enumerate | Cắm USB-C onboard; PC nhận HID mouse, không có nút bị giữ | CHƯA CHẠY |
-| BLE pairing | Chuột pairing được với HID service `0x1812`, con trỏ/nút/wheel/pan đúng | CHƯA CHẠY |
-| BLE reconnect | Tắt/bật chuột; tự nối lại bond đã lưu | CHƯA CHẠY |
-| LED scan | Khi chưa kết nối/reconnect/xóa bond: vàng 150 ms sáng, 150 ms tắt | CHƯA CHẠY |
+| Captive portal macOS | Join `MouseBridge-Setup-XXXX`; captive window tự mở và fallback `192.168.4.1` hoạt động | CHƯA CHẠY |
+| Captive portal iOS | Join AP; captive window tự mở và hiển thị đủ hai danh sách/hành động | CHƯA CHẠY |
+| Captive portal Android | Join AP; captive detection mở trang hoặc fallback hoạt động | CHƯA CHẠY |
+| Captive portal Windows | Join AP; captive detection mở trang hoặc fallback hoạt động | CHƯA CHẠY |
+| Freewolf X7 discovery | X7 xuất hiện trong Nearby dù advertisement không có UUID `0x1812` | CHƯA CHẠY |
+| Select/validate/store/shutdown | Connect X7, HID map hợp lệ, lưu identity; Wi-Fi dừng sau trạng thái thành công 3 giây | CHƯA CHẠY |
+| Power-cycle RPA reconnect | Tắt/bật nguồn; RPA mới resolve về identity đã lưu và chỉ reconnect đúng X7 | CHƯA CHẠY |
+| Switch A→B failure | Đang nối A, chọn B không hợp lệ; A bị ngắt và không tự nối lại ẩn, portal vẫn mở | CHƯA CHẠY |
+| Disconnect | Disconnect xóa target hiện tại nhưng giữ lịch sử và bond | CHƯA CHẠY |
+| Forget | Forget xóa đúng lịch sử và NimBLE bond của peer | CHƯA CHẠY |
+| Invalid HID rejection | Chọn thiết bị BLE không phải mouse/HID map lỗi; báo lỗi an toàn và portal vẫn hoạt động | CHƯA CHẠY |
+| BLE reconnect | Tắt/bật chuột; tự nối lại identity đã lưu, fallback portal sau 10 giây nếu thất bại | CHƯA CHẠY |
+| LED scan/portal | Khi chưa kết nối, reconnect hoặc portal mở: vàng 150 ms sáng, 150 ms tắt | CHƯA CHẠY |
 | LED pass-through | Kết nối rồi tắt mod: xanh lá 1 giây sáng, 1 giây tắt | CHƯA CHẠY |
 | LED 14 profile | Mod bật; 14 profile có 14 màu liên tục khác nhau, đổi trong tối đa 50 ms | CHƯA CHẠY |
 | LED ưu tiên trạng thái | Mất BLE khi profile sáng: chuyển vàng; reconnect: trở lại màu profile | CHƯA CHẠY |
-| LED sau BOOT | Nhấn nhanh đổi màu; giữ toggle đổi profile-color ↔ xanh lá; xóa bond đổi vàng | CHƯA CHẠY |
+| LED sau BOOT | Nhấn nhanh đổi màu; giữ toggle đổi profile-color ↔ xanh lá; giữ 5 giây mở portal và chuyển vàng | CHƯA CHẠY |
 | Nhiệt độ LED | Chạy liên tục ít nhất 30 phút; board/LED không nóng bất thường ở `R+G+B ≤ 76` | CHƯA CHẠY |
 | Pass-through | Giữ BOOT 1,5–4,999 giây rồi thả để tắt mod; report vật lý không đổi | CHƯA CHẠY |
 | Chuyển 14 profile | Nhấn BOOT nhanh 14 lần; profile tuần tự và wrap 14 → 1 | CHƯA CHẠY |
 | Vùng chết BOOT | Giữ 700–1.499 ms; profile và mod không đổi | CHƯA CHẠY |
 | Toggle mod | Mỗi lần giữ 1,5–4,999 giây rồi thả chỉ toggle đúng một lần | CHƯA CHẠY |
-| Xóa bond | Giữ đủ 5 giây; bond cũ bị xóa, quét lại, lúc thả không toggle mod | CHƯA CHẠY |
+| BOOT mở portal | Giữ đủ 5 giây; portal mở, bond/lịch sử còn nguyên, lúc thả không toggle mod | CHƯA CHẠY |
+| Wi-Fi disappearance | Sau validated selection + 3 giây, SSID biến mất và Wi-Fi driver dừng | CHƯA CHẠY |
+| HID sau setup | Sau khi Wi-Fi dừng, pointer/buttons/wheel/pan/profile đúng và không tăng latency bất thường | CHƯA CHẠY |
 | BLE disconnect release | Rút/tắt chuột khi giữ nút; PC release trong tối đa 20 ms | CHƯA CHẠY |
 | Suspend/resume | Sleep/wake PC; report đầu sau resume là release-all | CHƯA CHẠY |
 | Dual-core affinity | Log đúng core như `bringup.md`, không watchdog reset | CHƯA CHẠY |
