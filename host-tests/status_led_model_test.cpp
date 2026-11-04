@@ -42,7 +42,7 @@ int main() {
     assert(transition.update(false, false, true, 1, 50'150) == off);
     assert(transition.update(true, false, false, 1, 50'151) == green);
 
-    std::array<LedRgb, 14> profiles{};
+    std::array<LedRgb, 7> profiles{};
     for (size_t i = 0; i < profiles.size(); ++i) {
         StatusLedModel model;
         profiles[i] = model.update(true, false, true, i + 1, 1'000);
@@ -57,7 +57,7 @@ int main() {
     StatusLedModel low_clamp;
     StatusLedModel high_clamp;
     assert(low_clamp.update(true, false, true, 0, 0) == profiles[0]);
-    assert(high_clamp.update(true, false, true, 15, 0) == profiles[13]);
+    assert(high_clamp.update(true, false, true, 8, 0) == profiles[6]);
 
     assert(limit_led_rgb({0, 0, 0}) == off);
     const LedRgb mixed = limit_led_rgb({255, 128, 64});

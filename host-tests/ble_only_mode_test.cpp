@@ -9,7 +9,7 @@ using mouse_bridge::ReportFlags;
 
 int main() {
     BleOnlyMode queued(13, true);
-    assert(queued.selected_profile() == 14);
+    assert(queued.selected_profile() == 7);
     assert(queued.mods_enabled());
     assert(queued.enqueue(BootAction::NextProfile));
     assert(queued.enqueue(BootAction::NextProfile));

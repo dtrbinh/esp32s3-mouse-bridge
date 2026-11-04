@@ -19,7 +19,10 @@ MouseReport buttons(uint16_t value) {
 int main() {
     ProfileEngine engine;
     assert(engine.select(0));
+    assert(engine.select(6));
+    assert(!engine.select(7));
     assert(!engine.select(14));
+    assert(engine.select(0));
     engine.set_enabled(true);
 
     auto out = engine.process(buttons(0x0001), 0);
@@ -69,16 +72,11 @@ int main() {
     assert(out.y == 6);
     assert(out.x == 0);  // mod6 uses mod6_X, not mod1_X.
 
-    engine.reset();
-    assert(engine.select(7));
-    out = engine.process(buttons(0x0003), 300'000);
-    assert(out.x == -5 && out.y == 2);
-
     // A large scheduler stall emits at most one small step instead of
     // accumulating every missed step into a cursor jump.
     out = engine.process(buttons(0x0003), 8'500'000);
     assert(out.x >= -5 && out.x <= 5);
-    assert(out.y >= 0 && out.y <= 3);
+    assert(out.y >= 0 && out.y <= 7);
     assert(engine.catchup_overflows() <= 1);
 
     engine.set_bypass(true);

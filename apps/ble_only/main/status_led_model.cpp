@@ -12,7 +12,7 @@ constexpr uint16_t kChannelBudget = 76;
 
 constexpr LedRgb kScanYellow{255, 192, 0};
 constexpr LedRgb kConnectedGreen{0, 255, 0};
-constexpr std::array<LedRgb, 14> kProfileColors{{
+constexpr std::array<LedRgb, 7> kProfileColors{{
     {255, 0, 0},
     {255, 48, 0},
     {255, 112, 0},
@@ -20,13 +20,6 @@ constexpr std::array<LedRgb, 14> kProfileColors{{
     {255, 64, 180},
     {176, 32, 255},
     {80, 32, 255},
-    {0, 72, 255},
-    {0, 160, 255},
-    {0, 255, 255},
-    {0, 255, 144},
-    {176, 208, 255},
-    {255, 176, 96},
-    {255, 0, 144},
 }};
 
 bool blink_on(uint32_t elapsed_ms, uint32_t period_ms, uint32_t on_ms) {
@@ -65,7 +58,7 @@ LedRgb limit_led_rgb(LedRgb logical) {
 LedRgb StatusLedModel::update(bool connected, bool portal_active,
                               bool mods_enabled, size_t profile_number,
                               uint32_t now_ms) {
-    const size_t clamped_profile = std::clamp<size_t>(profile_number, 1, 14);
+    const size_t clamped_profile = std::clamp<size_t>(profile_number, 1, 7);
     const State next_state = (!connected || portal_active)
                                  ? State::Scanning
                                  : (mods_enabled

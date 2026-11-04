@@ -1,12 +1,12 @@
 menu "BLE-only mouse bridge"
 
 config BLE_ONLY_DEFAULT_PROFILE
-    int "Default movement profile (1-14)"
-    range 1 14
+    int "Default movement profile (1-7)"
+    range 1 7
     default 1
     help
         Selects the power-on profile. A short BOOT press advances to the
-        next profile and wraps after profile 14.
+        next profile and wraps after profile 7.
 
 config BLE_ONLY_LED_GPIO
     int "Onboard WS2812 GPIO"

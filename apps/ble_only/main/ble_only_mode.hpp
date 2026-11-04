@@ -13,7 +13,7 @@
 class BleOnlyMode {
 public:
     static constexpr size_t kCommandCapacity = 8;
-    static constexpr size_t kProfileCount = 14;
+    static constexpr size_t kProfileCount = 7;
 
     explicit BleOnlyMode(size_t default_profile_index, bool mods_enabled);
 
