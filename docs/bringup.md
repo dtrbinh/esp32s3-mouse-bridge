@@ -41,7 +41,21 @@ thẳng từ chuột BLE sang PC. Vì USB-C onboard đang được TinyUSB HID c
 `idf.py monitor` trên cùng cổng sẽ ngắt sau khi app khởi động. Muốn xem log
 `MB_DIAG` liên tục, dùng UART0 ngoài; việc điều khiển chuột không cần UART.
 
-Phân bố mong đợi: `nimble_host`, `ble_mouse`, `ble_only_boot` và
+WS2812 onboard dùng GPIO21 và có ba trạng thái ưu tiên:
+
+| Trạng thái | LED |
+|---|---|
+| Đang scan, reconnect hoặc vừa xóa bond | Vàng, 150 ms sáng / 150 ms tắt |
+| Đã kết nối, mod tắt | Xanh lá, 1 giây sáng / 1 giây tắt |
+| Đã kết nối, mod bật | Sáng liên tục theo màu profile |
+
+Màu profile 1–14 lần lượt là: đỏ, vermilion, cam, rose, hồng, tím, chàm,
+xanh dương, xanh da trời, cyan, xanh ngọc, trắng lạnh, trắng ấm và magenta.
+Tất cả màu dùng chung giới hạn `R+G+B ≤ 76`, tương đương 10% tổng công suất
+ba kênh. Nếu driver LED lỗi, firmware chỉ ghi log và BLE/USB HID vẫn tiếp tục.
+GPIO có thể đổi bằng `CONFIG_BLE_ONLY_LED_GPIO` nếu dùng biến thể board khác.
+
+Phân bố mong đợi: `nimble_host`, `ble_mouse`, `ble_only_boot`, `status_led` và
 `ble_only_diag` ở core 0; `ble_only_pipeline`, `usb_mouse` và TinyUSB ở core 1.
 
 ## 2. Flash từng bo riêng biệt

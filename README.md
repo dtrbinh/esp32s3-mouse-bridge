@@ -63,6 +63,10 @@ Trong firmware một bo `ble_only`, BOOT nhấn dưới 700 ms chuyển profile,
 1,5–4,999 giây rồi thả để bật/tắt mod, và giữ đủ 5 giây để xóa BLE bond.
 Khoảng 700–1.499 ms cố ý không thực hiện hành động.
 
+WS2812 onboard GPIO21 báo trạng thái ở giới hạn tổng RGB 10%: vàng nhấp nháy
+300 ms khi đang scan, xanh lá nhấp nháy 2 giây khi đã kết nối nhưng mod tắt,
+và sáng liên tục bằng màu riêng của profile 1–14 khi mod bật.
+
 Hai firmware in snapshot `MB_DIAG` mỗi 5 giây. Decoder:
 
 ```bash
