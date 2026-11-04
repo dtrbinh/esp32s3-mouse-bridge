@@ -32,6 +32,11 @@ void ProfileEngine::set_bypass(bool bypass) {
 
 void ProfileEngine::set_crouched(bool crouched) { crouched_ = crouched; }
 
+void ProfileEngine::set_activation_mask(uint16_t mask) {
+    activation_mask_ = mask;
+    deactivate();
+}
+
 void ProfileEngine::reset() {
     deactivate();
     catchup_overflows_ = 0;
@@ -69,9 +74,9 @@ mouse_bridge::MouseReport ProfileEngine::process(
     auto output = physical;
     output.physical_x = physical.x;
     output.physical_y = physical.y;
-    const bool activation =
-        (physical.buttons & (kPrimaryMask | kAimMask)) ==
-        (kPrimaryMask | kAimMask);
+    const bool activation = activation_mask_ != 0 &&
+                            (physical.buttons & activation_mask_) ==
+                                activation_mask_;
     if (!enabled_ || bypass_ || !activation) {
         deactivate();
         return output;

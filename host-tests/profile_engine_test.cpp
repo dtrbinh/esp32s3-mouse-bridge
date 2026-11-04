@@ -35,6 +35,16 @@ int main() {
     assert(out.y == 0);
     assert(!engine.active());
 
+    engine.set_activation_mask(0x0002);
+    out = engine.process(buttons(0x0002), 27'000);
+    assert(out.y == 1);  // Configurable aim-only activation.
+    assert(engine.active());
+    out = engine.process(buttons(0x0001), 28'000);
+    assert(out.y == 0);  // Primary alone does not satisfy aim-only activation.
+    assert(!engine.active());
+
+    engine.set_activation_mask(0x0003);
+
     engine.reset();
     engine.set_crouched(true);
     out = engine.process(buttons(0x0003), 100'000);

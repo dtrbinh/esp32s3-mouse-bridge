@@ -32,11 +32,18 @@ int main() {
     activating.y = -2;
     activating.wheel = 1;
     activating.pan = -1;
-    activating.buttons = 0x03;
+    activating.buttons = 0x02;
     auto generated = mode.process(activating, 1'000);
     assert(mouse_bridge::has_flag(generated.flags,
                                   ReportFlags::GeneratedMotion));
     assert(mode.profile_active());
+
+    MouseReport left_only{};
+    left_only.buttons = 0x01;
+    auto unmodified = mode.process(left_only, 1'500);
+    assert(!mouse_bridge::has_flag(unmodified.flags,
+                                   ReportFlags::GeneratedMotion));
+    assert(!mode.profile_active());
 
     assert(mode.enqueue(BootAction::ToggleMods));
     assert(mode.apply_next() == BootAction::ToggleMods);

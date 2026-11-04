@@ -16,6 +16,7 @@ public:
     void set_enabled(bool enabled);
     void set_bypass(bool bypass);
     void set_crouched(bool crouched);
+    void set_activation_mask(uint16_t mask);
     void reset();
 
     [[nodiscard]] bool active() const { return active_; }
@@ -39,6 +40,7 @@ private:
     bool crouched_{};
     bool active_{};
     bool profile_complete_{};
+    uint16_t activation_mask_{kPrimaryMask | kAimMask};
     uint64_t started_us_{};
     uint64_t next_due_us_{};
     uint32_t catchup_overflows_{};
