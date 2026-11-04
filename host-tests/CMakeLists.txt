@@ -110,3 +110,11 @@ target_compile_features(status_led_model_test PRIVATE cxx_std_20)
 target_include_directories(status_led_model_test PRIVATE ../apps/ble_only/main)
 add_test(NAME status_led_model COMMAND status_led_model_test)
 
+add_executable(ble_device_catalog_test ble_device_catalog_test.cpp
+    ../apps/ble_only/main/ble_device_catalog.cpp)
+target_compile_features(ble_device_catalog_test PRIVATE cxx_std_20)
+target_include_directories(ble_device_catalog_test PRIVATE
+    ../apps/ble_only/main
+    ../apps/input/main)
+add_test(NAME ble_device_catalog COMMAND ble_device_catalog_test)
+
