@@ -6,10 +6,28 @@ Kết quả phần mềm dưới đây đã được chạy trên host. Các m�
 
 | Kiểm tra | Kết quả hiện tại | Bằng chứng |
 |---|---|---|
-| Host unit tests | PASS | 10/10 CTest |
+| Host unit tests | PASS | 12/12 CTest |
 | Firmware input ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x9a2a0`, còn 40% partition |
-| Firmware output ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x3afd0`, còn 77% partition; HID endpoint 8 byte, interval 1 ms |
+| Firmware output ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x3afe0`, còn 77% partition; HID endpoint 8 byte, interval 1 ms |
+| Firmware BLE-only ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x87ae0`, còn 47% partition; BLE central + USB HID trên một bo |
 | Whitespace/static diff | PASS | `git diff --check` |
+
+## Kiểm tra phần cứng BLE-only một bo
+
+| Ca kiểm tra | Cách thực hiện / tiêu chí PASS | Trạng thái |
+|---|---|---|
+| USB enumerate | Cắm USB-C onboard; PC nhận HID mouse, không có nút bị giữ | CHƯA CHẠY |
+| BLE pairing | Chuột pairing được với HID service `0x1812`, con trỏ/nút/wheel/pan đúng | CHƯA CHẠY |
+| BLE reconnect | Tắt/bật chuột; tự nối lại bond đã lưu | CHƯA CHẠY |
+| Pass-through | Giữ BOOT 1,5–4,999 giây rồi thả để tắt mod; report vật lý không đổi | CHƯA CHẠY |
+| Chuyển 14 profile | Nhấn BOOT nhanh 14 lần; profile tuần tự và wrap 14 → 1 | CHƯA CHẠY |
+| Vùng chết BOOT | Giữ 700–1.499 ms; profile và mod không đổi | CHƯA CHẠY |
+| Toggle mod | Mỗi lần giữ 1,5–4,999 giây rồi thả chỉ toggle đúng một lần | CHƯA CHẠY |
+| Xóa bond | Giữ đủ 5 giây; bond cũ bị xóa, quét lại, lúc thả không toggle mod | CHƯA CHẠY |
+| BLE disconnect release | Rút/tắt chuột khi giữ nút; PC release trong tối đa 20 ms | CHƯA CHẠY |
+| Suspend/resume | Sleep/wake PC; report đầu sau resume là release-all | CHƯA CHẠY |
+| Dual-core affinity | Log đúng core như `bringup.md`, không watchdog reset | CHƯA CHẠY |
+| BLE latency | Đo tối thiểu 10.000 report; ghi median/p95/p99/max và interval BLE | CHƯA CHẠY |
 
 ## Kiểm tra phần cứng bắt buộc
 

@@ -10,7 +10,39 @@ cmake --build build/host
 ctest --test-dir build/host --output-on-failure
 idf.py -C apps/input build
 idf.py -C apps/output build
+idf.py -C apps/ble_only build
 ```
+
+## Test BLE trên một bo
+
+Firmware `apps/ble_only` không cần bo thứ hai, dây SPI hoặc nguồn VBUS Host.
+Cắm USB-C onboard trực tiếp vào PC; cáp này vừa cấp nguồn vừa là USB HID output.
+
+Lần đầu hoặc khi cần vào download mode, giữ BOOT, nhấn rồi thả RESET, sau đó
+thả BOOT. Xác định cổng vừa xuất hiện và flash:
+
+```bash
+idf.py -C apps/ble_only -p /dev/cu.usbmodem_BLE_ONLY flash
+```
+
+Sau reset, cổng download có thể biến mất vì cùng USB-C đã chuyển sang thiết bị
+HID `Adaptive HID Mouse Bridge`; đây là hành vi bình thường. Đặt chuột vào BLE
+pairing mode, sau đó kiểm tra con trỏ, nút, wheel và pan.
+
+BOOT có ba hành động, mỗi lần nhấn chỉ phát tối đa một hành động:
+
+- Nhấn dưới 700 ms: chuyển profile 1 → 2 → … → 14 → 1.
+- Giữ từ 700 ms đến dưới 1,5 giây: không làm gì.
+- Giữ ít nhất 1,5 giây nhưng dưới 5 giây rồi thả: bật/tắt toàn bộ mod.
+- Giữ đủ 5 giây: xóa bond ngay và quét lại; khi thả không đổi profile/mod.
+
+Profile/mod khởi động ở trạng thái bật. Khi mod tắt, X/Y, nút, wheel và pan đi
+thẳng từ chuột BLE sang PC. Vì USB-C onboard đang được TinyUSB HID chiếm dụng,
+`idf.py monitor` trên cùng cổng sẽ ngắt sau khi app khởi động. Muốn xem log
+`MB_DIAG` liên tục, dùng UART0 ngoài; việc điều khiển chuột không cần UART.
+
+Phân bố mong đợi: `nimble_host`, `ble_mouse`, `ble_only_boot` và
+`ble_only_diag` ở core 0; `ble_only_pipeline`, `usb_mouse` và TinyUSB ở core 1.
 
 ## 2. Flash từng bo riêng biệt
 

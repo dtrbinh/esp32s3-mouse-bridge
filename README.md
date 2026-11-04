@@ -5,6 +5,10 @@ Hai firmware ESP-IDF cho hai bo Waveshare ESP32-S3-Zero N4R2:
 - `apps/input`: nhận chuột dây hoặc receiver 2.4 GHz bằng USB Host, hoặc chuột BLE HID; chuẩn hóa report và gửi qua SPI.
 - `apps/output`: nhận SPI và xuất USB HID mouse sang máy tính với endpoint interval 1 ms.
 
+Ngoài cặp firmware chính, `apps/ble_only` là bản test độc lập cho **một bo**:
+nhận chuột BLE, chạy đủ 14 profile/mod và xuất USB HID trực tiếp qua USB-C
+onboard. Bản này không khởi tạo USB Host hoặc SPI.
+
 Pipeline hoàn chỉnh:
 
 ```text
@@ -37,6 +41,8 @@ idf.py -C apps/input set-target esp32s3
 idf.py -C apps/input build
 idf.py -C apps/output set-target esp32s3
 idf.py -C apps/output build
+idf.py -C apps/ble_only set-target esp32s3
+idf.py -C apps/ble_only build
 ```
 
 Unit test portable không cần ESP-IDF:
@@ -52,6 +58,10 @@ Xem [wiring](docs/wiring.md), [bring-up](docs/bringup.md) và [validation](docs/
 ## Profile và diagnostics
 
 Profile engine mặc định bật. Nút chuột 4/5 chọn profile 1/2; các profile 1–14 có thể chọn làm mặc định qua `CONFIG_MOUSE_BRIDGE_DEFAULT_PROFILE`. Giữ BOOT trên bo output để bypass chuyển động sinh nhưng vẫn giữ pass-through vật lý.
+
+Trong firmware một bo `ble_only`, BOOT nhấn dưới 700 ms chuyển profile, giữ
+1,5–4,999 giây rồi thả để bật/tắt mod, và giữ đủ 5 giây để xóa BLE bond.
+Khoảng 700–1.499 ms cố ý không thực hiện hành động.
 
 Hai firmware in snapshot `MB_DIAG` mỗi 5 giây. Decoder:
 
