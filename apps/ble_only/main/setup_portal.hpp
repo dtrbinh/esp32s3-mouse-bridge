@@ -9,7 +9,6 @@
 #include "esp_netif.h"
 
 #include <array>
-#include <cstddef>
 
 class SetupPortal {
 public:
@@ -18,7 +17,6 @@ public:
     esp_err_t start();
     esp_err_t stop();
     [[nodiscard]] bool active() const { return lifecycle_.active(); }
-    [[nodiscard]] size_t station_count() const;
 
 private:
     static esp_err_t root_handler(httpd_req_t* request);

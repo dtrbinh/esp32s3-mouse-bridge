@@ -10,8 +10,6 @@
 #include "esp_timer.h"
 #include "esp_wifi.h"
 #include "esp_wifi_default.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
 
 #include <array>
 #include <cstdio>
@@ -20,11 +18,6 @@
 namespace {
 constexpr char kTag[] = "setup_portal";
 constexpr std::array<uint8_t, 4> kPortalAddress{192, 168, 4, 1};
-constexpr EventBits_t kApStartedBit = BIT0;
-
-void on_ap_started(void* arg, esp_event_base_t, int32_t, void*) {
-    xEventGroupSetBits(static_cast<EventGroupHandle_t>(arg), kApStartedBit);
-}
 
 esp_err_t portal_stage_error(const char* stage, esp_err_t result) {
     ESP_LOGE(kTag, "stage=%s error=%s (0x%x)", stage,
@@ -97,51 +90,13 @@ esp_err_t SetupPortal::start() {
         (void)unwind();
         return portal_stage_error("wifi_config", result);
     }
-    EventGroupHandle_t ap_started = xEventGroupCreate();
-    if (ap_started == nullptr) {
-        lifecycle_.fail();
-        (void)unwind();
-        return portal_stage_error("ap_event_create", ESP_ERR_NO_MEM);
-    }
-    esp_event_handler_instance_t ap_started_handler{};
-    result = esp_event_handler_instance_register(
-        WIFI_EVENT, WIFI_EVENT_AP_START, on_ap_started, ap_started,
-        &ap_started_handler);
-    if (result != ESP_OK) {
-        vEventGroupDelete(ap_started);
-        lifecycle_.fail();
-        (void)unwind();
-        return portal_stage_error("ap_event_register", result);
-    }
-
     result = esp_wifi_start();
     if (result != ESP_OK) {
-        const esp_err_t unregister_result =
-            esp_event_handler_instance_unregister(
-            WIFI_EVENT, WIFI_EVENT_AP_START, ap_started_handler);
-        if (unregister_result == ESP_OK) vEventGroupDelete(ap_started);
         lifecycle_.fail();
         (void)unwind();
         return portal_stage_error("wifi_start", result);
     }
     (void)lifecycle_.mark_acquired(PortalResource::WifiStarted);
-    const EventBits_t started_bits = xEventGroupWaitBits(
-        ap_started, kApStartedBit, pdTRUE, pdFALSE, pdMS_TO_TICKS(2000));
-    const esp_err_t unregister_result =
-        esp_event_handler_instance_unregister(
-            WIFI_EVENT, WIFI_EVENT_AP_START, ap_started_handler);
-    if (unregister_result == ESP_OK) vEventGroupDelete(ap_started);
-    if ((started_bits & kApStartedBit) == 0) {
-        lifecycle_.fail();
-        (void)unwind();
-        return portal_stage_error("ap_start_event", ESP_ERR_TIMEOUT);
-    }
-    if (unregister_result != ESP_OK) {
-        lifecycle_.fail();
-        (void)unwind();
-        return portal_stage_error("ap_event_unregister", unregister_result);
-    }
-    ESP_LOGI(kTag, "WIFI_EVENT_AP_START observed");
 
     result = start_http();
     if (result != ESP_OK) {
@@ -165,13 +120,6 @@ esp_err_t SetupPortal::start() {
 esp_err_t SetupPortal::stop() {
     lifecycle_.stop();
     return unwind();
-}
-
-size_t SetupPortal::station_count() const {
-    if (!active()) return 0;
-    wifi_sta_list_t stations{};
-    if (esp_wifi_ap_get_sta_list(&stations) != ESP_OK) return 0;
-    return stations.num;
 }
 
 esp_err_t SetupPortal::unwind() {

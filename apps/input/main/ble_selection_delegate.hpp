@@ -17,7 +17,6 @@ enum class BleClientCommandKind : uint8_t {
     Forget,
     StartScan,
     StopScan,
-    PauseScan,
 };
 
 struct BleClientCommand {

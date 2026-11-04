@@ -3,7 +3,6 @@
 #include "ble_device_store.hpp"
 #include "ble_only_mode.hpp"
 #include "boot_control.hpp"
-#include "portal_scan_policy.hpp"
 #include "setup_portal.hpp"
 #include "source_arbiter.hpp"
 #include "status_led.hpp"
@@ -41,7 +40,6 @@ struct DiagnosticsContext {
     BleOnlyMode* mode;
     UsbMouseDevice* usb;
     BleDeviceManager* manager;
-    SetupPortal* portal;
 };
 
 struct SetupContext {
@@ -176,7 +174,7 @@ void diagnostics_task(void* arg) {
         ESP_LOGI(
             "WIFI_DIAG",
             "mode=%d mode_err=%s ssid=%s hidden=%u beacon=%u dtim=%u "
-            "config_err=%s channel=%u channel_err=%s stations=%u "
+            "config_err=%s channel=%u channel_err=%s "
             "mac=%02X:%02X:%02X:%02X:%02X:%02X "
             "mac_err=%s",
             static_cast<int>(wifi_mode), esp_err_to_name(mode_result),
@@ -185,9 +183,8 @@ void diagnostics_task(void* arg) {
             static_cast<unsigned>(wifi_config.ap.beacon_interval),
             static_cast<unsigned>(wifi_config.ap.dtim_period),
             esp_err_to_name(config_result), static_cast<unsigned>(wifi_channel),
-            esp_err_to_name(channel_result),
-            static_cast<unsigned>(context.portal->station_count()), wifi_mac[0],
-            wifi_mac[1], wifi_mac[2], wifi_mac[3], wifi_mac[4], wifi_mac[5],
+            esp_err_to_name(channel_result), wifi_mac[0], wifi_mac[1],
+            wifi_mac[2], wifi_mac[3], wifi_mac[4], wifi_mac[5],
             esp_err_to_name(mac_result));
     }
 }
@@ -196,45 +193,19 @@ void setup_task(void* arg) {
     auto& context = *static_cast<SetupContext*>(arg);
     ESP_LOGI("ble_only_setup", "core=%d", xPortGetCoreID());
     std::optional<BleManagerDecision> pending;
-    std::optional<PortalScanPolicy> applied_scan_policy;
-    uint32_t next_station_poll_ms = 0;
     while (true) {
         const uint32_t now_ms =
             static_cast<uint32_t>(esp_timer_get_time() / 1'000);
-        if (static_cast<int32_t>(now_ms - next_station_poll_ms) >= 0) {
-            next_station_poll_ms = now_ms + 200;
-            const bool portal_active =
-                context.manager->status(now_ms).setup.portal_active;
-            const size_t stations = context.portal->station_count();
-            const auto desired = portal_scan_policy(portal_active, stations);
-            if (applied_scan_policy != desired) {
-                BleClientCommandKind command = BleClientCommandKind::StopScan;
-                if (desired == PortalScanPolicy::PausedForPortalBeacon) {
-                    command = BleClientCommandKind::PauseScan;
-                } else if (desired == PortalScanPolicy::PortalDiscovery) {
-                    command = BleClientCommandKind::StartScan;
-                }
-                if (context.ble->enqueue_control({command, {}})) {
-                    applied_scan_policy = desired;
-                    ESP_LOGI("ble_only_setup", "portal_stations=%u scan_policy=%u",
-                             static_cast<unsigned>(stations),
-                             static_cast<unsigned>(desired));
-                }
-            }
-        }
         if (!pending.has_value()) pending = context.manager->service(now_ms);
         if (pending.has_value()) {
             bool complete = true;
             switch (pending->kind) {
             case BleManagerDecisionKind::StartPortal: {
-                const bool paused = context.ble->enqueue_control(
-                    {BleClientCommandKind::PauseScan, {}});
-                const esp_err_t result =
-                    paused ? context.portal->start() : ESP_ERR_NO_MEM;
+                const esp_err_t result = context.portal->start();
                 if (result == ESP_OK) {
-                    context.manager->set_portal_active(true);
-                    applied_scan_policy =
-                        PortalScanPolicy::PausedForPortalBeacon;
+                    complete = context.ble->enqueue_control(
+                        {BleClientCommandKind::StartScan, {}});
+                    if (complete) context.manager->set_portal_active(true);
                 } else {
                     complete = false;
                     ESP_LOGE("ble_only_setup", "Portal unavailable: %s",
@@ -251,8 +222,6 @@ void setup_task(void* arg) {
                 }
                 if (complete) {
                     context.manager->set_portal_active(false);
-                    applied_scan_policy =
-                        PortalScanPolicy::BackgroundReconnect;
                 } else if (result != ESP_OK) {
                     ESP_LOGE("ble_only_setup", "Portal shutdown failed: %s",
                              esp_err_to_name(result));
@@ -296,8 +265,7 @@ extern "C" void app_main() {
     static StatusLed status_led(ble_mouse, mode, device_manager);
     static PipelineContext pipeline{&arbiter, &mode, &usb_mouse};
     static DiagnosticsContext diagnostics{&arbiter, &ble_mouse, &mode,
-                                          &usb_mouse, &device_manager,
-                                          &setup_portal};
+                                          &usb_mouse, &device_manager};
     static SetupContext setup{&device_manager, &setup_portal, &ble_mouse};
 
     ESP_ERROR_CHECK(usb_mouse.start(false));
@@ -329,7 +297,13 @@ extern "C" void app_main() {
     }
 
     ble_mouse.set_selection_delegate(&device_manager);
-    ESP_ERROR_CHECK(ble_mouse.start(portal_bootstrapped));
+    ESP_ERROR_CHECK(ble_mouse.start());
+    if (portal_bootstrapped) {
+        ESP_ERROR_CHECK(ble_mouse.enqueue_control(
+                            {BleClientCommandKind::StartScan, {}})
+                            ? ESP_OK
+                            : ESP_ERR_NO_MEM);
+    }
     ESP_ERROR_CHECK(boot_control.start(pipeline_handle));
     ESP_ERROR_CHECK(xTaskCreateStaticPinnedToCore(
                         setup_task, "ble_only_setup", setup_stack.size(),
