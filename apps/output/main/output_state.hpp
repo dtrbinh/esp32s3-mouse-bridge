@@ -17,7 +17,7 @@ class OutputState {
 public:
     void on_packet(const mouse_bridge::MouseReport& report, uint32_t sequence,
                    uint64_t rx_us);
-    void update_timeouts(uint64_t now_us);
+    bool update_timeouts(uint64_t now_us);
     OutputFrame tick(uint64_t now_us, bool bypass);
     void on_usb_suspend();
     void on_usb_resume(uint64_t now_us);

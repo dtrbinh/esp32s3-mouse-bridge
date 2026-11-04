@@ -41,24 +41,29 @@ void OutputState::on_packet(const mouse_bridge::MouseReport& report,
     timeout_latched_ = false;
 }
 
-void OutputState::update_timeouts(uint64_t now_us) {
+bool OutputState::update_timeouts(uint64_t now_us) {
     const uint64_t age = received_ && now_us >= last_packet_us_
                              ? now_us - last_packet_us_
                              : UINT64_MAX;
+    bool changed = false;
     if (age >= kMotionTimeoutUs) {
+        changed = x_ != 0 || y_ != 0 || bypass_x_ != 0 || bypass_y_ != 0 ||
+                  wheel_ != 0 || pan_ != 0;
         x_ = y_ = bypass_x_ = bypass_y_ = wheel_ = pan_ = 0;
     }
     if (age >= kReleaseTimeoutUs) {
+        changed = changed || buttons_ != 0;
         buttons_ = 0;
         if (received_ && !timeout_latched_) {
             ++timeout_count_;
             timeout_latched_ = true;
         }
     }
+    return changed;
 }
 
 OutputFrame OutputState::tick(uint64_t now_us, bool bypass) {
-    update_timeouts(now_us);
+    (void)update_timeouts(now_us);
     const uint64_t age = received_ && now_us >= last_packet_us_
                              ? now_us - last_packet_us_
                              : UINT64_MAX;

@@ -34,6 +34,11 @@ int main() {
     assert(!scheduler.due(11'999));
     assert(scheduler.due(12'000));
 
+    // Safety releases bypass a slow nominal cadence.
+    scheduler.on_sent(12'000);
+    scheduler.request_immediate();
+    assert(scheduler.due(13'000));
+
     // A 7.5 ms BLE cadence alternates 8 ms and 7 ms USB-frame gaps.
     scheduler.reset();
     scheduler.on_packet(packet(7'500, false), 0);

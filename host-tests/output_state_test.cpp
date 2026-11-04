@@ -45,6 +45,8 @@ int main() {
     assert(frame.buttons == 0x8001);
 
     // Twenty milliseconds releases all held buttons.
+    assert(state.update_timeouts(30'000));
+    assert(!state.update_timeouts(30'001));
     frame = state.tick(30'000, false);
     assert(frame.buttons == 0);
     assert(!frame.link_active);

@@ -49,7 +49,7 @@ uint16_t CadenceEstimator::observe(uint64_t timestamp_us) {
         return current_us_;
     }
 
-    if (static_cast<uint32_t>(sample) * 2U < current_us_) {
+    if (static_cast<uint32_t>(sample) * 2U <= current_us_) {
         current_us_ = sample;
         slower_candidate_us_ = 0;
         slower_candidate_count_ = 0;

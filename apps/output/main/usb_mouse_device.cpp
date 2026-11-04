@@ -125,7 +125,7 @@ void UsbMouseDevice::task() {
         bool report_due = false;
         OutputFrame frame{};
         portENTER_CRITICAL(&state_lock_);
-        state_.update_timeouts(now_us);
+        if (state_.update_timeouts(now_us)) scheduler_.request_immediate();
         if (usb_ready && scheduler_.due(now_us)) {
             frame = state_.tick(now_us, bypass_);
             scheduler_.on_sent(now_us);

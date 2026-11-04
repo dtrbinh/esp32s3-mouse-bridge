@@ -8,6 +8,7 @@ class ReportScheduler {
 public:
     void on_packet(const mouse_bridge::MouseReport& report, uint64_t rx_us);
     [[nodiscard]] bool due(uint64_t now_us) const;
+    void request_immediate() { event_pending_ = true; }
     void on_sent(uint64_t now_us);
     void reset();
     [[nodiscard]] uint16_t interval_us() const { return interval_us_; }

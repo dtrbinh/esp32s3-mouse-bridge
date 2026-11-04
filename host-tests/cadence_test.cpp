@@ -29,4 +29,14 @@ int main() {
     // One long sample may be a dropped report, two establish a slower rate.
     assert(estimator.observe(109'000) == 1'000);
     assert(estimator.observe(117'000) == 8'000);
+
+    estimator.reset();
+    assert(estimator.observe(200'000) == 0);
+    assert(estimator.observe(202'000) == 2'000);
+    assert(estimator.observe(203'000) == 1'000);
+
+    estimator.reset();
+    assert(estimator.observe(300'000) == 0);
+    assert(estimator.observe(304'000) == 4'000);
+    assert(estimator.observe(306'000) == 2'000);
 }
