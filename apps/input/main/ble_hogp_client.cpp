@@ -1,5 +1,7 @@
 #include "ble_hogp_client.hpp"
 
+#include "mouse_bridge/cadence.hpp"
+
 #include "hid_parser/mouse_decoder.hpp"
 
 #include "esp_log.h"
@@ -282,6 +284,12 @@ void BleHogpClient::decode_input(const esp_hidh_event_data_t& data) {
     if (hid_parser::decode_mouse_report(
             layout, std::span<const uint8_t>(report_bytes.data(), length),
             report) == hid_parser::DecodeStatus::Ok) {
+        const uint16_t units = negotiated_interval_units_.load(
+            std::memory_order_relaxed);
+        report.poll_interval_us = units == 0
+                                      ? 0
+                                      : mouse_bridge::sanitize_poll_interval_us(
+                                            static_cast<uint32_t>(units) * 1'250U);
         arbiter_.on_report(mouse_bridge::InputSource::Ble, report,
                            static_cast<uint64_t>(esp_timer_get_time()));
     }

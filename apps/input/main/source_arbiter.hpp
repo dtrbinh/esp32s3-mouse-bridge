@@ -27,7 +27,7 @@ private:
     static constexpr size_t kQueueCapacity = 8;
 
     void push(const mouse_bridge::MouseReport& report);
-    void push_boundary(uint64_t now_us);
+    void push_boundary(uint64_t now_us, uint16_t poll_interval_us);
 
     std::array<mouse_bridge::MouseReport, kQueueCapacity> queue_{};
     size_t head_{};
@@ -38,6 +38,7 @@ private:
     bool pending_ble_valid_{};
     mouse_bridge::MouseReport pending_ble_{};
     mouse_bridge::InputSource active_{mouse_bridge::InputSource::None};
+    uint16_t active_poll_interval_us_{};
     uint64_t ble_fallback_after_us_{};
     uint32_t dropped_{};
 #ifdef ESP_PLATFORM

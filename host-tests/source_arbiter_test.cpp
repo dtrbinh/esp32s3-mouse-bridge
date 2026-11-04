@@ -6,11 +6,13 @@ using mouse_bridge::InputSource;
 using mouse_bridge::MouseReport;
 
 namespace {
-MouseReport report(InputSource source, uint16_t buttons, int16_t x = 0) {
+MouseReport report(InputSource source, uint16_t buttons, int16_t x = 0,
+                   uint16_t poll_interval_us = 0) {
     MouseReport value{};
     value.source = source;
     value.buttons = buttons;
     value.x = x;
+    value.poll_interval_us = poll_interval_us;
     return value;
 }
 }
@@ -18,17 +20,22 @@ MouseReport report(InputSource source, uint16_t buttons, int16_t x = 0) {
 int main() {
     SourceArbiter arbiter;
     arbiter.on_connected(InputSource::Ble, 0);
-    arbiter.on_report(InputSource::Ble, report(InputSource::Ble, 1, 3), 0);
+    arbiter.on_report(InputSource::Ble,
+                      report(InputSource::Ble, 1, 3, 7'500), 0);
     auto out = arbiter.poll(0);
-    assert(out && out->source == InputSource::Ble && out->x == 3);
+    assert(out && out->source == InputSource::Ble && out->x == 3 &&
+           out->poll_interval_us == 7'500);
 
     arbiter.on_connected(InputSource::Usb, 1'000);
-    arbiter.on_report(InputSource::Usb, report(InputSource::Usb, 3, 7), 1'000);
+    arbiter.on_report(InputSource::Usb,
+                      report(InputSource::Usb, 3, 7, 1'000), 1'000);
     out = arbiter.poll(1'000);
     assert(out && out->buttons == 0 &&
            mouse_bridge::has_flag(out->flags, mouse_bridge::ReportFlags::Boundary));
+    assert(out->poll_interval_us == 1'000);
     out = arbiter.poll(1'000);
-    assert(out && out->source == InputSource::Usb && out->x == 7);
+    assert(out && out->source == InputSource::Usb && out->x == 7 &&
+           out->poll_interval_us == 1'000);
 
     arbiter.on_report(InputSource::Ble, report(InputSource::Ble, 1, 99), 2'000);
     assert(!arbiter.poll(2'000));  // BLE is suppressed while USB is valid.

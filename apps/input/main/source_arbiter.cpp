@@ -32,11 +32,12 @@ void SourceArbiter::push(const MouseReport& report) {
     ++size_;
 }
 
-void SourceArbiter::push_boundary(uint64_t now_us) {
+void SourceArbiter::push_boundary(uint64_t now_us, uint16_t poll_interval_us) {
     MouseReport boundary{};
     boundary.timestamp_us = now_us;
     boundary.source = InputSource::None;
     boundary.flags = ReportFlags::Boundary;
+    boundary.poll_interval_us = poll_interval_us;
     push(boundary);
 }
 
@@ -58,9 +59,12 @@ void SourceArbiter::on_report(InputSource source, const MouseReport& report,
         usb_connected_ = true;
         usb_valid_ = true;
         if (active_ != InputSource::Usb) {
-            if (active_ != InputSource::None) push_boundary(now_us);
+            if (active_ != InputSource::None) {
+                push_boundary(now_us, tagged.poll_interval_us);
+            }
             active_ = InputSource::Usb;
         }
+        active_poll_interval_us_ = tagged.poll_interval_us;
         push(tagged);
         return;
     }
@@ -73,6 +77,7 @@ void SourceArbiter::on_report(InputSource source, const MouseReport& report,
         return;
     }
     active_ = InputSource::Ble;
+    active_poll_interval_us_ = tagged.poll_interval_us;
     push(tagged);
     pending_ble_valid_ = false;
 }
@@ -88,8 +93,10 @@ void SourceArbiter::on_disconnected(InputSource source, uint64_t now_us) {
         pending_ble_valid_ = false;
     }
     if (active_ == source) {
+        const uint16_t cadence = active_poll_interval_us_;
         active_ = InputSource::None;
-        push_boundary(now_us);
+        active_poll_interval_us_ = 0;
+        push_boundary(now_us, cadence);
     }
 }
 
@@ -104,6 +111,7 @@ std::optional<MouseReport> SourceArbiter::poll(uint64_t now_us) {
     if (active_ == InputSource::None && !usb_valid_ && ble_connected_ &&
         pending_ble_valid_ && now_us >= ble_fallback_after_us_) {
         active_ = InputSource::Ble;
+        active_poll_interval_us_ = pending_ble_.poll_interval_us;
         pending_ble_valid_ = false;
         return pending_ble_;
     }

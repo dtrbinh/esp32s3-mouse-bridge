@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hid_parser/report_descriptor.hpp"
+#include "mouse_bridge/cadence.hpp"
 #include "source_arbiter.hpp"
 
 #include "esp_err.h"
@@ -101,6 +102,7 @@ private:
     std::atomic<uint32_t> connections_{};
     std::atomic<uint32_t> disconnects_{};
     uint64_t previous_report_us_{};
+    mouse_bridge::CadenceEstimator cadence_estimator_{};
     PriorityCallback on_active_{};
     PriorityCallback on_inactive_{};
     void* priority_context_{};

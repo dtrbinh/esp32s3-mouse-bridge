@@ -177,6 +177,7 @@ void UsbMouseHost::handle_connected(hid_host_device_handle_t handle) {
         return;
     }
     previous_report_us_ = 0;
+    cadence_estimator_.reset();
     connections_.fetch_add(1, std::memory_order_relaxed);
 }
 
@@ -186,6 +187,7 @@ void UsbMouseHost::handle_disconnected(hid_host_device_handle_t handle,
         active_handle_ = nullptr;
         active_layout_ = {};
         previous_report_us_ = 0;
+        cadence_estimator_.reset();
         observed_interval_us_.store(0, std::memory_order_relaxed);
         disconnects_.fetch_add(1, std::memory_order_relaxed);
         arbiter_.on_disconnected(mouse_bridge::InputSource::Usb, now_us);
@@ -209,10 +211,12 @@ void UsbMouseHost::handle_input(const Event& event) {
         return;
     }
     if (previous_report_us_ != 0 && event.timestamp_us > previous_report_us_) {
-        observed_interval_us_.store(
-            static_cast<uint32_t>(std::min<uint64_t>(
-                event.timestamp_us - previous_report_us_, UINT32_MAX)),
-            std::memory_order_relaxed);
+        const uint16_t interval = cadence_estimator_.observe(event.timestamp_us);
+        observed_interval_us_.store(interval, std::memory_order_relaxed);
+        report.poll_interval_us = interval;
+    } else {
+        (void)cadence_estimator_.observe(event.timestamp_us);
+        report.poll_interval_us = cadence_estimator_.current();
     }
     previous_report_us_ = event.timestamp_us;
     if (!priority_active_) {
