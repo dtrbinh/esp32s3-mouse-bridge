@@ -182,9 +182,11 @@ std::optional<size_t> write_portal_json(const PortalView& view,
     writer.append(",\"error\":");
     writer.json_string(error_name(view.setup.error));
     writer.append(",\"saved\":[");
+    size_t saved_written = 0;
     for (size_t i = 0; i < view.saved.count; ++i) {
-        if (i != 0) writer.append(",");
         const auto& device = view.saved.devices[i];
+        if (device.name[0] == '\0') continue;
+        if (saved_written++ != 0) writer.append(",");
         writer.append("{\"name\":");
         writer.json_string(bounded_name(device.name));
         writer.append(",\"address\":");
@@ -196,9 +198,11 @@ std::optional<size_t> write_portal_json(const PortalView& view,
         writer.append("}");
     }
     writer.append("],\"nearby\":[");
+    size_t nearby_written = 0;
     for (size_t i = 0; i < view.nearby.count; ++i) {
-        if (i != 0) writer.append(",");
         const auto& device = view.nearby.devices[i];
+        if (device.name[0] == '\0') continue;
+        if (nearby_written++ != 0) writer.append(",");
         writer.append("{\"name\":");
         writer.json_string(bounded_name(device.name));
         writer.append(",\"address\":");

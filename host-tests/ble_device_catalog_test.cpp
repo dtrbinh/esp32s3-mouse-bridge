@@ -26,7 +26,7 @@ int main() {
     auto first = advertisement(9, {}, -70);
     first.appearance = 0x03c2;
     catalog.observe(first, 1'000);
-    auto response = advertisement(9, "Freewolf X7", -45);
+    auto response = advertisement(9, "Freewolf X7   ", -45);
     response.advertises_hid = true;
     catalog.observe(response, 1'010);
 
@@ -37,6 +37,13 @@ int main() {
     assert(snapshot.devices[0].advertises_hid);
     assert(snapshot.devices[0].rssi == -45);
     assert(snapshot.devices[0].last_seen_ms == 1'010);
+
+    // Anonymous advertisements are retained for scan-response merging but
+    // never exposed to the portal.
+    catalog.observe(advertisement(12, {}, -10), 1'015);
+    snapshot = catalog.snapshot(1'015);
+    assert(snapshot.count == 1);
+    assert(catalog.active_count(1'015) == 1);
 
     catalog.observe(advertisement(10, "Weak", -80), 1'020);
     catalog.observe(advertisement(11, "Strong", -20), 1'030);

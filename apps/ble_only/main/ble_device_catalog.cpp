@@ -63,6 +63,9 @@ void copy_display_name(std::string_view input, std::array<char, 33>& output) {
             output[destination++] = input[source++];
         }
     }
+    while (destination > 0 && output[destination - 1] == ' ') {
+        output[--destination] = '\0';
+    }
 }
 
 bool address_before(const BlePeerAddress& left, const BlePeerAddress& right) {
@@ -140,7 +143,8 @@ void BleDeviceCatalog::observe(const BleAdvertisement& advertisement,
 BleNearbySnapshot BleDeviceCatalog::snapshot(uint32_t now_ms) const {
     BleNearbySnapshot result{};
     for (size_t i = 0; i < count_; ++i) {
-        if (!is_stale(now_ms, devices_[i].last_seen_ms)) {
+        if (!is_stale(now_ms, devices_[i].last_seen_ms) &&
+            devices_[i].name[0] != '\0') {
             result.devices[result.count++] = devices_[i];
         }
     }
@@ -165,7 +169,10 @@ BleNearbySnapshot BleDeviceCatalog::snapshot(uint32_t now_ms) const {
 size_t BleDeviceCatalog::active_count(uint32_t now_ms) const {
     size_t active = 0;
     for (size_t i = 0; i < count_; ++i) {
-        if (!is_stale(now_ms, devices_[i].last_seen_ms)) ++active;
+        if (!is_stale(now_ms, devices_[i].last_seen_ms) &&
+            devices_[i].name[0] != '\0') {
+            ++active;
+        }
     }
     return active;
 }

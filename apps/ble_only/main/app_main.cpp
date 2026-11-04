@@ -27,8 +27,8 @@
 namespace {
 constexpr BaseType_t kRadioCore = 0;
 constexpr BaseType_t kRealtimeCore = 1;
-constexpr bool kWebConfigEnabled = false;
-constexpr std::string_view kAutoConnectNameFragment = "X7";
+constexpr bool kWebConfigEnabled = true;
+constexpr std::string_view kAutoConnectNameFragment{};
 
 struct PipelineContext {
     SourceArbiter* arbiter;
@@ -291,8 +291,6 @@ extern "C" void app_main() {
                         ? ESP_OK
                         : ESP_ERR_NO_MEM);
     ESP_LOGI("ble_only",
-             "BLE mouse to USB HID started; target=%.*s profile=%u mods=on",
-             static_cast<int>(kAutoConnectNameFragment.size()),
-             kAutoConnectNameFragment.data(),
+             "BLE mouse to USB HID started; selection=portal profile=%u mods=on",
              static_cast<unsigned>(mode.selected_profile()));
 }

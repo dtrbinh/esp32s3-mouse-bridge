@@ -22,15 +22,18 @@ int main() {
     view.setup.portal_active = true;
     view.setup.portal_desired = true;
     view.setup.attempt = address(9, 1);
-    view.saved.count = 1;
+    view.saved.count = 2;
     view.saved.devices[0].identity = address(1);
     view.saved.devices[0].connected = true;
     set_name(view.saved.devices[0].name, "Mouse \"A\"");
-    view.nearby.count = 1;
+    view.saved.devices[1].identity = address(2);
+    view.nearby.count = 2;
     view.nearby.devices[0].address = address(9, 1);
     view.nearby.devices[0].rssi = -37;
     view.nearby.devices[0].advertises_hid = true;
     set_name(view.nearby.devices[0].name, "Freewolf\\X7");
+    view.nearby.devices[1].address = address(10, 1);
+    view.nearby.devices[1].rssi = -20;
 
     std::array<char, 8192> output{};
     const auto size = write_portal_json(view, output);
@@ -44,6 +47,8 @@ int main() {
     assert(json.find("\"rssi\":-37") != std::string::npos);
     assert(json.find("\"address\":\"09:05:04:03:02:01\"") !=
            std::string::npos);
+    assert(json.find("02:05:04:03:02:01") == std::string::npos);
+    assert(json.find("0A:05:04:03:02:01") == std::string::npos);
 
     std::array<char, 32> tiny{};
     assert(!write_portal_json(view, tiny).has_value());
