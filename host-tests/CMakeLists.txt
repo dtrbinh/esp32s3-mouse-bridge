@@ -88,3 +88,14 @@ target_compile_features(boot_press_test PRIVATE cxx_std_20)
 target_include_directories(boot_press_test PRIVATE ../apps/ble_only/main)
 add_test(NAME boot_press COMMAND boot_press_test)
 
+add_executable(ble_only_mode_test ble_only_mode_test.cpp
+    ../apps/ble_only/main/ble_only_mode.cpp
+    ../components/profile_engine/src/profile_engine.cpp
+    ../components/profile_engine/src/default_profiles.cpp)
+target_compile_features(ble_only_mode_test PRIVATE cxx_std_20)
+target_include_directories(ble_only_mode_test PRIVATE
+    ../apps/ble_only/main
+    ../components/mouse_bridge/include
+    ../components/profile_engine/include)
+add_test(NAME ble_only_mode COMMAND ble_only_mode_test)
+

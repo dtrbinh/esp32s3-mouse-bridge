@@ -1,0 +1,11 @@
+menu "BLE-only mouse bridge"
+
+config BLE_ONLY_DEFAULT_PROFILE
+    int "Default movement profile (1-14)"
+    range 1 14
+    default 1
+    help
+        Selects the power-on profile. A short BOOT press advances to the
+        next profile and wraps after profile 14.
+
+endmenu

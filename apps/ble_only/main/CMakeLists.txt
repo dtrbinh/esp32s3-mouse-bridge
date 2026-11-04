@@ -1,0 +1,24 @@
+idf_component_register(
+    SRCS
+        "app_main.cpp"
+        "boot_control.cpp"
+        "boot_press.cpp"
+        "ble_only_mode.cpp"
+        "../../input/main/source_arbiter.cpp"
+        "../../input/main/ble_hogp_client.cpp"
+        "../../output/main/output_state.cpp"
+        "../../output/main/report_scheduler.cpp"
+        "../../output/main/usb_mouse_device.cpp"
+        "../../output/main/tusb_descriptors.c"
+    INCLUDE_DIRS
+        "."
+        "../../input/main"
+        "../../output/main"
+    REQUIRES
+        esp_timer
+        esp_driver_gpio
+        esp_hid
+        hid_parser
+        mouse_bridge
+        nvs_flash
+        profile_engine)
