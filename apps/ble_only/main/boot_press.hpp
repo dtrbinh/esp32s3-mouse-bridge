@@ -6,7 +6,8 @@ enum class BootAction : uint8_t {
     None,
     NextProfile,
     ToggleMods,
-    ClearBond,
+    OpenPortal,
+    ClearBond = OpenPortal,
 };
 
 class BootPressClassifier {

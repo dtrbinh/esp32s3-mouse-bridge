@@ -11,7 +11,7 @@ BootAction BootPressClassifier::update(bool pressed, uint32_t elapsed_ms) {
         if (!terminal_action_fired_ &&
             elapsed_ms - pressed_at_ms_ >= kClearBondThresholdMs) {
             terminal_action_fired_ = true;
-            return BootAction::ClearBond;
+            return BootAction::OpenPortal;
         }
         return BootAction::None;
     }

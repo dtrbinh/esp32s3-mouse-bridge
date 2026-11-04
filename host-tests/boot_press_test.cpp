@@ -27,7 +27,7 @@ int main() {
 
     assert(classifier.update(true, 13'000) == BootAction::None);
     assert(classifier.update(true, 17'999) == BootAction::None);
-    assert(classifier.update(true, 18'000) == BootAction::ClearBond);
+    assert(classifier.update(true, 18'000) == BootAction::OpenPortal);
     assert(classifier.update(true, 19'000) == BootAction::None);
     assert(classifier.update(false, 19'100) == BootAction::None);
 
