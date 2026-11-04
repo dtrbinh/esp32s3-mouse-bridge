@@ -13,6 +13,12 @@
 
 class SourceArbiter {
 public:
+    using WakeCallback = void (*)(void* context);
+
+    void set_wake_callback(WakeCallback callback, void* context) {
+        wake_callback_ = callback;
+        wake_context_ = context;
+    }
     void on_connected(mouse_bridge::InputSource source, uint64_t now_us);
     void on_report(mouse_bridge::InputSource source,
                    const mouse_bridge::MouseReport& report, uint64_t now_us);
@@ -28,6 +34,7 @@ private:
 
     void push(const mouse_bridge::MouseReport& report);
     void push_boundary(uint64_t now_us, uint16_t poll_interval_us);
+    void notify_wake() const;
 
     std::array<mouse_bridge::MouseReport, kQueueCapacity> queue_{};
     size_t head_{};
@@ -41,6 +48,8 @@ private:
     uint16_t active_poll_interval_us_{};
     uint64_t ble_fallback_after_us_{};
     uint32_t dropped_{};
+    WakeCallback wake_callback_{};
+    void* wake_context_{};
 #ifdef ESP_PLATFORM
     mutable portMUX_TYPE lock_ = portMUX_INITIALIZER_UNLOCKED;
 #endif
