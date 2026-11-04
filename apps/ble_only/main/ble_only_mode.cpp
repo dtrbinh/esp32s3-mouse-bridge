@@ -1,12 +1,12 @@
 #include "ble_only_mode.hpp"
 
 BleOnlyMode::BleOnlyMode(size_t default_profile_index, bool mods_enabled) {
-    constexpr uint16_t kRightButtonMask = 1U << 1;
+    constexpr uint16_t kLeftButtonMask = 1U << 0;
     const size_t selected = default_profile_index % kProfileCount;
     selected_.store(selected, std::memory_order_relaxed);
     mods_enabled_.store(mods_enabled, std::memory_order_relaxed);
     (void)profiles_.select(selected);
-    profiles_.set_activation_mask(kRightButtonMask);
+    profiles_.set_activation_mask(kLeftButtonMask);
     profiles_.set_enabled(mods_enabled);
 }
 
