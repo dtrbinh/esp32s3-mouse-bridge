@@ -9,6 +9,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "host/ble_hs.h"
+#include "host/ble_esp_gap.h"
 #include "host/ble_store.h"
 #include "host/util/util.h"
 #include "nimble/nimble_port.h"
@@ -59,6 +60,10 @@ esp_err_t BleHogpClient::start() {
     result = esp_hidh_init(&config);
     if (result != ESP_OK) return result;
 
+    command_queue_ = xQueueCreateStatic(
+        kCommandCapacity, sizeof(BleClientCommand),
+        command_queue_storage_.data(), &command_queue_control_);
+    if (command_queue_ == nullptr) return ESP_ERR_NO_MEM;
     worker_handle_ = xTaskCreateStaticPinnedToCore(
         worker_task_entry, "ble_mouse", worker_stack_.size(), this, 3,
         worker_stack_.data(), &worker_control_, 0);
@@ -80,17 +85,61 @@ void BleHogpClient::worker_task_entry(void* arg) {
 void BleHogpClient::worker_task() {
     ESP_LOGI(kTag, "ble_mouse core=%d", xPortGetCoreID());
     while (true) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        if (connecting_.exchange(true)) continue;
-        device_.store(esp_hidh_dev_open(candidate_address_.data(),
-                                        ESP_HID_TRANSPORT_BLE,
-                                        candidate_address_type_),
-                      std::memory_order_release);
-        if (device_.load(std::memory_order_acquire) == nullptr) {
-            connecting_.store(false);
-            resume_or_scan();
+        BleClientCommand command{};
+        if (xQueueReceive(command_queue_, &command, portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+        if (command.kind == BleClientCommandKind::Connect) {
+            if (connecting_.exchange(true) ||
+                device_.load(std::memory_order_acquire) != nullptr) {
+                connecting_.store(false);
+                if (selection_delegate_ != nullptr) {
+                    selection_delegate_->on_attempt_failed(
+                        command.peer, BleSelectionFailure::ConnectionFailed,
+                        static_cast<uint32_t>(esp_timer_get_time() / 1'000));
+                }
+                continue;
+            }
+            (void)ble_gap_disc_cancel();
+            candidate_address_ = command.peer.bytes;
+            candidate_address_type_ = command.peer.type;
+            device_.store(esp_hidh_dev_open(candidate_address_.data(),
+                                            ESP_HID_TRANSPORT_BLE,
+                                            candidate_address_type_),
+                          std::memory_order_release);
+            if (device_.load(std::memory_order_acquire) == nullptr) {
+                connecting_.store(false);
+                if (selection_delegate_ != nullptr) {
+                    selection_delegate_->on_attempt_failed(
+                        command.peer, BleSelectionFailure::ConnectionFailed,
+                        static_cast<uint32_t>(esp_timer_get_time() / 1'000));
+                }
+                resume_or_scan();
+            }
+        } else if (command.kind == BleClientCommandKind::Disconnect) {
+            forwarding_.store(false);
+            if (auto* device = device_.load(std::memory_order_acquire)) {
+                (void)esp_hidh_dev_close(device);
+            } else {
+                connecting_.store(false);
+                if (selection_delegate_ != nullptr) {
+                    selection_delegate_->on_disconnected(
+                        static_cast<uint32_t>(esp_timer_get_time() / 1'000));
+                }
+                resume_or_scan();
+            }
+        } else if (device_.load(std::memory_order_acquire) != nullptr) {
+            pending_forget_ = command.peer;
+            pending_forget_valid_.store(true, std::memory_order_release);
+        } else {
+            forget_peer(command.peer);
         }
     }
+}
+
+bool BleHogpClient::enqueue_control(BleClientCommand command) {
+    return command_queue_ != nullptr &&
+           xQueueSend(command_queue_, &command, 0) == pdTRUE;
 }
 
 void BleHogpClient::sync_callback() {
@@ -117,15 +166,49 @@ int BleHogpClient::scan_callback(ble_gap_event* event, void* arg) {
                 break;
             }
         }
+        BleAdvertisement advertisement{};
+        std::copy_n(event->disc.addr.val, advertisement.address.bytes.size(),
+                    advertisement.address.bytes.begin());
+        advertisement.address.type = event->disc.addr.type;
+        if (fields.name != nullptr && fields.name_len != 0) {
+            advertisement.name = std::string_view(
+                reinterpret_cast<const char*>(fields.name), fields.name_len);
+        }
+        advertisement.rssi = event->disc.rssi;
+        if (fields.appearance_is_present) {
+            advertisement.appearance = fields.appearance;
+        }
+        advertisement.advertises_hid = hid;
+
+        if (self->selection_delegate_ != nullptr) {
+            std::optional<BlePeerAddress> resolved;
+            ble_addr_t observed{};
+            observed.type = advertisement.address.type;
+            std::copy(advertisement.address.bytes.begin(),
+                      advertisement.address.bytes.end(), observed.val);
+            if (advertisement.address.type == BLE_ADDR_RANDOM &&
+                BLE_ADDR_IS_RPA(&observed)) {
+                auto rpa = advertisement.address.bytes;
+                BlePeerAddress identity{};
+                uint8_t identity_type = 0;
+                if (ble_gap_rpa_resolve(rpa.data(), identity.bytes.data(),
+                                        &identity_type)) {
+                    identity.type = identity_type;
+                    resolved = identity;
+                }
+            }
+            self->selection_delegate_->on_advertisement(
+                advertisement, resolved,
+                static_cast<uint32_t>(esp_timer_get_time() / 1'000));
+            return 0;
+        }
+
         if (!hid || self->connecting_.load() ||
             self->device_.load(std::memory_order_acquire) != nullptr) {
             return 0;
         }
-        std::copy_n(event->disc.addr.val, self->candidate_address_.size(),
-                    self->candidate_address_.begin());
-        self->candidate_address_type_ = event->disc.addr.type;
-        (void)ble_gap_disc_cancel();
-        xTaskNotifyGive(self->worker_handle_);
+        (void)self->enqueue_control(
+            {BleClientCommandKind::Connect, advertisement.address});
     } else if (event->type == BLE_GAP_EVENT_DISC_COMPLETE &&
                self->device_.load(std::memory_order_acquire) == nullptr &&
                !self->connecting_.load()) {
@@ -204,7 +287,35 @@ void BleHogpClient::on_hidh_event(esp_hidh_event_t event,
             connections_.fetch_add(1, std::memory_order_relaxed);
             request_low_latency_interval(data.open.dev);
             arbiter_.on_connected(mouse_bridge::InputSource::Ble, now_us);
+            if (selection_delegate_ != nullptr) {
+                BlePeerAddress observed{candidate_address_,
+                                        candidate_address_type_};
+                BlePeerAddress identity = observed;
+                ble_addr_t peer{};
+                peer.type = candidate_address_type_;
+                std::copy(candidate_address_.begin(), candidate_address_.end(),
+                          peer.val);
+                ble_gap_conn_desc connection{};
+                if (ble_gap_conn_find_by_addr(&peer, &connection) == 0) {
+                    identity.type = connection.peer_id_addr.type;
+                    std::copy_n(connection.peer_id_addr.val,
+                                identity.bytes.size(), identity.bytes.begin());
+                }
+                const char* device_name = esp_hidh_dev_name_get(data.open.dev);
+                selection_delegate_->on_validated_connection(
+                    observed, identity,
+                    device_name != nullptr ? std::string_view(device_name)
+                                           : std::string_view{},
+                    static_cast<uint32_t>(now_us / 1'000));
+            }
         } else {
+            if (selection_delegate_ != nullptr) {
+                selection_delegate_->on_attempt_failed(
+                    {candidate_address_, candidate_address_type_},
+                    data.open.status == ESP_OK ? BleSelectionFailure::NotMouse
+                                               : BleSelectionFailure::ConnectionFailed,
+                    static_cast<uint32_t>(now_us / 1'000));
+            }
             connected_.store(false, std::memory_order_release);
             device_.store(nullptr, std::memory_order_release);
             if (data.open.dev != nullptr) (void)esp_hidh_dev_close(data.open.dev);
@@ -220,13 +331,31 @@ void BleHogpClient::on_hidh_event(esp_hidh_event_t event,
             device_.store(nullptr, std::memory_order_release);
             layout_valid_.fill(false);
             arbiter_.on_disconnected(mouse_bridge::InputSource::Ble, now_us);
+            if (selection_delegate_ != nullptr) {
+                selection_delegate_->on_disconnected(
+                    static_cast<uint32_t>(now_us / 1'000));
+            }
         }
         (void)esp_hidh_dev_free(data.close.dev);
+        if (pending_forget_valid_.exchange(false,
+                                           std::memory_order_acq_rel)) {
+            forget_peer(pending_forget_);
+        }
         connecting_.store(false);
         resume_or_scan();
         break;
     default:
         break;
+    }
+}
+
+void BleHogpClient::forget_peer(BlePeerAddress peer) {
+    ble_addr_t address{};
+    address.type = peer.type;
+    std::copy(peer.bytes.begin(), peer.bytes.end(), address.val);
+    const int result = ble_store_util_delete_peer(&address);
+    if (result != 0 && result != BLE_HS_ENOENT) {
+        ESP_LOGW(kTag, "Failed to forget peer, rc=%d", result);
     }
 }
 

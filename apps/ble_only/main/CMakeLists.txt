@@ -9,6 +9,8 @@ idf_component_register(
         "ble_device_catalog.cpp"
         "ble_device_history.cpp"
         "ble_device_store.cpp"
+        "ble_device_manager.cpp"
+        "ble_setup_state.cpp"
         "../../input/main/source_arbiter.cpp"
         "../../input/main/ble_hogp_client.cpp"
         "../../output/main/output_state.cpp"

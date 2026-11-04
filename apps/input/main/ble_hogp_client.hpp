@@ -1,11 +1,14 @@
 #pragma once
 
+#include "ble_peer.hpp"
+#include "ble_selection_delegate.hpp"
 #include "hid_parser/report_descriptor.hpp"
 #include "source_arbiter.hpp"
 
 #include "esp_err.h"
 #include "esp_hidh.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 #include "host/ble_gap.h"
 
@@ -19,6 +22,10 @@ public:
     explicit BleHogpClient(SourceArbiter& arbiter) : arbiter_(arbiter) {}
 
     esp_err_t start();
+    void set_selection_delegate(BleSelectionDelegate* delegate) {
+        selection_delegate_ = delegate;
+    }
+    bool enqueue_control(BleClientCommand command);
     void suspend_forwarding();
     void resume_or_scan();
     void clear_bond();
@@ -34,6 +41,7 @@ public:
 
 private:
     static constexpr size_t kMaxMaps = 4;
+    static constexpr size_t kCommandCapacity = 8;
     static constexpr size_t kWorkerStackWords = 6144 / sizeof(StackType_t);
 
     static void host_task_entry(void* arg);
@@ -51,6 +59,7 @@ private:
     bool compile_maps(esp_hidh_dev_t* device);
     void request_low_latency_interval(esp_hidh_dev_t* device);
     void decode_input(const esp_hidh_event_data_t& data);
+    void forget_peer(BlePeerAddress peer);
 
     static BleHogpClient* instance_;
     SourceArbiter& arbiter_;
@@ -61,6 +70,13 @@ private:
     std::array<bool, kMaxMaps> layout_valid_{};
     std::array<uint8_t, 6> candidate_address_{};
     uint8_t candidate_address_type_{};
+    BleSelectionDelegate* selection_delegate_{};
+    QueueHandle_t command_queue_{};
+    StaticQueue_t command_queue_control_{};
+    std::array<uint8_t, kCommandCapacity * sizeof(BleClientCommand)>
+        command_queue_storage_{};
+    BlePeerAddress pending_forget_{};
+    std::atomic<bool> pending_forget_valid_{};
     std::atomic<esp_hidh_dev_t*> device_{};
     std::atomic<bool> forwarding_{true};
     std::atomic<bool> synced_{};

@@ -151,3 +151,14 @@ target_include_directories(captive_dns_codec_test PRIVATE
     ../apps/ble_only/main)
 add_test(NAME captive_dns_codec COMMAND captive_dns_codec_test)
 
+add_executable(ble_device_manager_test ble_device_manager_test.cpp
+    ../apps/ble_only/main/ble_device_manager.cpp
+    ../apps/ble_only/main/ble_device_catalog.cpp
+    ../apps/ble_only/main/ble_device_history.cpp
+    ../apps/ble_only/main/ble_setup_state.cpp)
+target_compile_features(ble_device_manager_test PRIVATE cxx_std_20)
+target_include_directories(ble_device_manager_test PRIVATE
+    ../apps/ble_only/main
+    ../apps/input/main)
+add_test(NAME ble_device_manager COMMAND ble_device_manager_test)
+
