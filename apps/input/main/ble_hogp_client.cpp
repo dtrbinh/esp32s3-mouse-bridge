@@ -31,8 +31,9 @@ constexpr uint16_t kPreferredIntervalUnits = 6;  // 7.5 ms
 
 BleHogpClient* BleHogpClient::instance_ = nullptr;
 
-esp_err_t BleHogpClient::start() {
+esp_err_t BleHogpClient::start(bool scan_paused) {
     instance_ = this;
+    scan_paused_.store(scan_paused, std::memory_order_release);
     esp_err_t result = nvs_flash_init();
     if (result == ESP_ERR_NVS_NO_FREE_PAGES ||
         result == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -99,13 +100,20 @@ void BleHogpClient::worker_task() {
             continue;
         }
         if (command.kind == BleClientCommandKind::StartScan) {
+            scan_paused_.store(false, std::memory_order_release);
             portal_scanning_.store(true, std::memory_order_release);
             resume_or_scan();
         } else if (command.kind == BleClientCommandKind::StopScan) {
+            scan_paused_.store(false, std::memory_order_release);
             portal_scanning_.store(false, std::memory_order_release);
             if (device_.load(std::memory_order_acquire) != nullptr) {
                 (void)ble_gap_disc_cancel();
             }
+            resume_or_scan();
+        } else if (command.kind == BleClientCommandKind::PauseScan) {
+            scan_paused_.store(true, std::memory_order_release);
+            portal_scanning_.store(false, std::memory_order_release);
+            (void)ble_gap_disc_cancel();
         } else if (command.kind == BleClientCommandKind::Connect) {
             if (connecting_.exchange(true) ||
                 device_.load(std::memory_order_acquire) != nullptr) {
@@ -256,6 +264,7 @@ int BleHogpClient::gap_listener_callback(ble_gap_event* event, void* arg) {
 
 void BleHogpClient::resume_or_scan() {
     forwarding_.store(true);
+    if (scan_paused_.load(std::memory_order_acquire)) return;
     const bool has_device =
         device_.load(std::memory_order_acquire) != nullptr;
     if (!synced_.load() ||

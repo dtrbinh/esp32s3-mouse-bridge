@@ -169,3 +169,9 @@ target_include_directories(portal_lifecycle_test PRIVATE
     ../apps/ble_only/main)
 add_test(NAME portal_lifecycle COMMAND portal_lifecycle_test)
 
+add_executable(portal_scan_policy_test portal_scan_policy_test.cpp)
+target_compile_features(portal_scan_policy_test PRIVATE cxx_std_20)
+target_include_directories(portal_scan_policy_test PRIVATE
+    ../apps/ble_only/main)
+add_test(NAME portal_scan_policy COMMAND portal_scan_policy_test)
+

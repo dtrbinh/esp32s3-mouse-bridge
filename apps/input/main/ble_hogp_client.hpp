@@ -21,7 +21,7 @@ class BleHogpClient {
 public:
     explicit BleHogpClient(SourceArbiter& arbiter) : arbiter_(arbiter) {}
 
-    esp_err_t start();
+    esp_err_t start(bool scan_paused = false);
     void set_selection_delegate(BleSelectionDelegate* delegate) {
         selection_delegate_ = delegate;
     }
@@ -84,6 +84,7 @@ private:
     std::atomic<bool> connecting_{};
     std::atomic<bool> connected_{};
     std::atomic<bool> portal_scanning_{};
+    std::atomic<bool> scan_paused_{};
     std::atomic<uint16_t> negotiated_interval_units_{};
     std::atomic<uint32_t> connections_{};
     ble_gap_event_listener gap_listener_{};
