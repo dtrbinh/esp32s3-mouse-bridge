@@ -11,6 +11,7 @@
 #include "esp_log.h"
 #include "esp_task_wdt.h"
 #include "esp_timer.h"
+#include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
@@ -141,6 +142,17 @@ void diagnostics_task(void* arg) {
         const uint32_t now_ms =
             static_cast<uint32_t>(esp_timer_get_time() / 1'000);
         const auto portal = context.manager->status(now_ms);
+        wifi_mode_t wifi_mode = WIFI_MODE_NULL;
+        wifi_config_t wifi_config{};
+        uint8_t wifi_channel = 0;
+        wifi_second_chan_t wifi_second = WIFI_SECOND_CHAN_NONE;
+        uint8_t wifi_mac[6]{};
+        const esp_err_t mode_result = esp_wifi_get_mode(&wifi_mode);
+        const esp_err_t config_result =
+            esp_wifi_get_config(WIFI_IF_AP, &wifi_config);
+        const esp_err_t channel_result =
+            esp_wifi_get_channel(&wifi_channel, &wifi_second);
+        const esp_err_t mac_result = esp_wifi_get_mac(WIFI_IF_AP, wifi_mac);
         ESP_LOGI(
             "MB_DIAG",
             "board=ble_only source=%s ble_connections=%lu "
@@ -159,6 +171,21 @@ void diagnostics_task(void* arg) {
             static_cast<unsigned>(portal.saved_count),
             static_cast<unsigned>(portal.nearby_count),
             setup_phase_name(portal.setup.phase));
+        ESP_LOGI(
+            "WIFI_DIAG",
+            "mode=%d mode_err=%s ssid=%s hidden=%u beacon=%u dtim=%u "
+            "config_err=%s channel=%u channel_err=%s "
+            "mac=%02X:%02X:%02X:%02X:%02X:%02X "
+            "mac_err=%s",
+            static_cast<int>(wifi_mode), esp_err_to_name(mode_result),
+            reinterpret_cast<const char*>(wifi_config.ap.ssid),
+            static_cast<unsigned>(wifi_config.ap.ssid_hidden),
+            static_cast<unsigned>(wifi_config.ap.beacon_interval),
+            static_cast<unsigned>(wifi_config.ap.dtim_period),
+            esp_err_to_name(config_result), static_cast<unsigned>(wifi_channel),
+            esp_err_to_name(channel_result), wifi_mac[0], wifi_mac[1],
+            wifi_mac[2], wifi_mac[3], wifi_mac[4], wifi_mac[5],
+            esp_err_to_name(mac_result));
     }
 }
 

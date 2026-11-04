@@ -187,6 +187,9 @@ esp_err_t SetupPortal::configure_ap() {
     config.ap.channel = 1;
     config.ap.authmode = WIFI_AUTH_OPEN;
     config.ap.max_connection = 4;
+    config.ap.beacon_interval = 100;
+    config.ap.csa_count = 3;
+    config.ap.dtim_period = 1;
     result = esp_wifi_set_storage(WIFI_STORAGE_RAM);
     if (result != ESP_OK) return result;
     result = esp_wifi_set_mode(WIFI_MODE_AP);
