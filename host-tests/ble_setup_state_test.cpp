@@ -32,6 +32,15 @@ int main() {
     assert(reconnect.snapshot().portal_desired);
     take(reconnect, BleSetupActionKind::StartPortal);
 
+    BleSetupState connecting_fallback;
+    connecting_fallback.start(address(1), 100);
+    connecting_fallback.request_connect(address(1));
+    take(connecting_fallback, BleSetupActionKind::Connect);
+    connecting_fallback.tick(10'100);
+    assert(connecting_fallback.snapshot().phase == BleSetupPhase::Connecting);
+    assert(connecting_fallback.snapshot().portal_desired);
+    take(connecting_fallback, BleSetupActionKind::StartPortal);
+
     BleSetupState manual;
     manual.start(address(1), 0);
     manual.request_portal();
@@ -111,4 +120,11 @@ int main() {
     assert(!cancelled_success.snapshot().wifi_shutdown_due_ms.has_value());
     cancelled_success.tick(3'100);
     assert(!cancelled_success.take_action().has_value());
+
+    BleSetupState forget_selected;
+    forget_selected.start(mouse_a, 0);
+    forget_selected.forget(mouse_a);
+    assert(!forget_selected.snapshot().selected.has_value());
+    assert(forget_selected.snapshot().portal_desired);
+    take(forget_selected, BleSetupActionKind::StartPortal);
 }

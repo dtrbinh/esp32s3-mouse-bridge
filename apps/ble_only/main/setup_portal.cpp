@@ -6,6 +6,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_mac.h"
+#include "esp_netif_defaults.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
 #include "esp_wifi_default.h"
@@ -36,46 +37,57 @@ esp_err_t send_ok(httpd_req_t* request) {
 
 esp_err_t SetupPortal::start() {
     if (active()) return ESP_OK;
+    const esp_err_t cleanup_result = unwind();
+    if (cleanup_result != ESP_OK) return cleanup_result;
     if (!lifecycle_.begin()) return ESP_ERR_INVALID_STATE;
 
     esp_err_t result = esp_netif_init();
     if (result != ESP_OK && result != ESP_ERR_INVALID_STATE) {
         lifecycle_.fail();
-        unwind();
+        (void)unwind();
         return result;
     }
     result = esp_event_loop_create_default();
     if (result != ESP_OK && result != ESP_ERR_INVALID_STATE) {
         lifecycle_.fail();
-        unwind();
+        (void)unwind();
         return result;
     }
-    ap_netif_ = esp_netif_create_default_wifi_ap();
+    esp_netif_config_t netif_config = ESP_NETIF_DEFAULT_WIFI_AP();
+    ap_netif_ = esp_netif_new(&netif_config);
     if (ap_netif_ == nullptr) {
         lifecycle_.fail();
-        unwind();
+        (void)unwind();
         return ESP_ERR_NO_MEM;
     }
     (void)lifecycle_.mark_acquired(PortalResource::Netif);
+    result = esp_netif_attach_wifi_ap(ap_netif_);
+    netif_attached_ = result == ESP_OK;
+    if (result == ESP_OK) result = esp_wifi_set_default_wifi_ap_handlers();
+    if (result != ESP_OK) {
+        lifecycle_.fail();
+        (void)unwind();
+        return result;
+    }
 
     wifi_init_config_t wifi_init = WIFI_INIT_CONFIG_DEFAULT();
     result = esp_wifi_init(&wifi_init);
     if (result != ESP_OK) {
         lifecycle_.fail();
-        unwind();
+        (void)unwind();
         return result;
     }
     (void)lifecycle_.mark_acquired(PortalResource::Wifi);
     result = configure_ap();
     if (result != ESP_OK) {
         lifecycle_.fail();
-        unwind();
+        (void)unwind();
         return result;
     }
     result = esp_wifi_start();
     if (result != ESP_OK) {
         lifecycle_.fail();
-        unwind();
+        (void)unwind();
         return result;
     }
     (void)lifecycle_.mark_acquired(PortalResource::WifiStarted);
@@ -83,7 +95,7 @@ esp_err_t SetupPortal::start() {
     result = start_http();
     if (result != ESP_OK) {
         lifecycle_.fail();
-        unwind();
+        (void)unwind();
         return result;
     }
     (void)lifecycle_.mark_acquired(PortalResource::Http);
@@ -91,7 +103,7 @@ esp_err_t SetupPortal::start() {
     result = dns_.start(kPortalAddress, 0);
     if (result != ESP_OK) {
         lifecycle_.fail();
-        unwind();
+        (void)unwind();
         return result;
     }
     (void)lifecycle_.mark_acquired(PortalResource::Dns);
@@ -99,37 +111,58 @@ esp_err_t SetupPortal::start() {
     return ESP_OK;
 }
 
-void SetupPortal::stop() {
+esp_err_t SetupPortal::stop() {
     lifecycle_.stop();
-    unwind();
+    return unwind();
 }
 
-void SetupPortal::unwind() {
-    while (const auto resource = lifecycle_.take_release()) {
+esp_err_t SetupPortal::unwind() {
+    while (const auto resource = lifecycle_.next_release()) {
+        esp_err_t result = ESP_OK;
         switch (*resource) {
         case PortalResource::Dns:
-            dns_.stop();
+            result = dns_.stop();
             break;
         case PortalResource::Http:
             if (http_ != nullptr) {
-                (void)httpd_stop(http_);
-                http_ = nullptr;
+                std::array<int, 4> clients{};
+                size_t client_count = clients.size();
+                if (httpd_get_client_list(http_, &client_count,
+                                          clients.data()) == ESP_OK) {
+                    for (size_t i = 0; i < client_count; ++i) {
+                        (void)httpd_sess_trigger_close(http_, clients[i]);
+                    }
+                }
+                result = httpd_stop(http_);
+                if (result == ESP_OK) http_ = nullptr;
             }
             break;
         case PortalResource::WifiStarted:
-            (void)esp_wifi_stop();
+            result = esp_wifi_stop();
+            if (result == ESP_ERR_WIFI_NOT_STARTED) result = ESP_OK;
             break;
         case PortalResource::Wifi:
-            (void)esp_wifi_deinit();
+            result = esp_wifi_deinit();
+            if (result == ESP_ERR_WIFI_NOT_INIT) result = ESP_OK;
             break;
         case PortalResource::Netif:
             if (ap_netif_ != nullptr) {
-                esp_netif_destroy_default_wifi(ap_netif_);
-                ap_netif_ = nullptr;
+                if (netif_attached_) {
+                    result = esp_wifi_clear_default_wifi_driver_and_handlers(
+                        ap_netif_);
+                    if (result == ESP_OK) netif_attached_ = false;
+                }
+                if (result == ESP_OK) {
+                    esp_netif_destroy(ap_netif_);
+                    ap_netif_ = nullptr;
+                }
             }
             break;
         }
+        if (result != ESP_OK) return result;
+        if (!lifecycle_.mark_released(*resource)) return ESP_ERR_INVALID_STATE;
     }
+    return ESP_OK;
 }
 
 esp_err_t SetupPortal::configure_ap() {
@@ -162,6 +195,9 @@ esp_err_t SetupPortal::start_http() {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.core_id = 0;
     config.stack_size = 6144;
+    config.task_priority = 2;
+    config.recv_wait_timeout = 1;
+    config.send_wait_timeout = 1;
     config.max_open_sockets = 4;
     config.max_uri_handlers = 16;
     config.lru_purge_enable = true;
@@ -220,9 +256,12 @@ esp_err_t SetupPortal::read_peer(httpd_req_t* request, BlePeerAddress& peer) {
     }
     std::array<char, 97> body{};
     size_t received = 0;
+    const int64_t deadline_us = esp_timer_get_time() + 1'500'000;
     while (received < static_cast<size_t>(request->content_len)) {
+        if (esp_timer_get_time() >= deadline_us) return ESP_ERR_TIMEOUT;
         const int amount = httpd_req_recv(
             request, body.data() + received, request->content_len - received);
+        if (amount == HTTPD_SOCK_ERR_TIMEOUT) continue;
         if (amount <= 0) return ESP_FAIL;
         received += amount;
     }
@@ -238,7 +277,13 @@ esp_err_t SetupPortal::connect_handler(httpd_req_t* request) {
         return httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST,
                                    "invalid device");
     }
-    owner(request)->manager_.request_connect(peer);
+    if (!owner(request)->manager_.request_connect(peer)) {
+        no_cache(request);
+        httpd_resp_set_status(request, "409 Conflict");
+        httpd_resp_set_type(request, "text/plain; charset=utf-8");
+        return httpd_resp_send(request, "connection already in progress",
+                               HTTPD_RESP_USE_STRLEN);
+    }
     return send_ok(request);
 }
 

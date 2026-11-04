@@ -34,7 +34,7 @@ bool PortalLifecycle::mark_acquired(PortalResource resource) {
 
 void PortalLifecycle::fail() {
     starting_ = false;
-    stopping_ = true;
+    stopping_ = acquired_ != 0;
 }
 
 void PortalLifecycle::stop() {
@@ -43,14 +43,18 @@ void PortalLifecycle::stop() {
     stopping_ = acquired_ != 0;
 }
 
-std::optional<PortalResource> PortalLifecycle::take_release() {
+std::optional<PortalResource> PortalLifecycle::next_release() const {
     if (!stopping_ || acquired_ == 0) {
-        stopping_ = false;
         return std::nullopt;
     }
-    const auto resource = kAcquisitionOrder[--acquired_];
+    return kAcquisitionOrder[acquired_ - 1];
+}
+
+bool PortalLifecycle::mark_released(PortalResource resource) {
+    if (next_release() != resource) return false;
+    --acquired_;
     if (acquired_ == 0) stopping_ = false;
-    return resource;
+    return true;
 }
 
 bool PortalLifecycle::active() const {

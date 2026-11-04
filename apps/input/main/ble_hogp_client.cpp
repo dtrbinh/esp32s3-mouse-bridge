@@ -9,6 +9,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "host/ble_hs.h"
+#include "host/ble_sm.h"
 #include "host/ble_esp_gap.h"
 #include "host/ble_store.h"
 #include "host/util/util.h"
@@ -51,6 +52,10 @@ esp_err_t BleHogpClient::start() {
     ble_hs_cfg.sm_bonding = 1;
     ble_hs_cfg.sm_sc = 1;
     ble_hs_cfg.sm_mitm = 0;
+    ble_hs_cfg.sm_our_key_dist =
+        BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+    ble_hs_cfg.sm_their_key_dist =
+        BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
     ble_store_config_init();
     if (ble_gap_event_listener_register(&gap_listener_, gap_listener_callback,
                                         this) != 0) {
@@ -93,7 +98,15 @@ void BleHogpClient::worker_task() {
         if (xQueueReceive(command_queue_, &command, portMAX_DELAY) != pdTRUE) {
             continue;
         }
-        if (command.kind == BleClientCommandKind::Connect) {
+        if (command.kind == BleClientCommandKind::StartScan) {
+            portal_scanning_.store(true, std::memory_order_release);
+            resume_or_scan();
+        } else if (command.kind == BleClientCommandKind::StopScan) {
+            portal_scanning_.store(false, std::memory_order_release);
+            if (device_.load(std::memory_order_acquire) != nullptr) {
+                (void)ble_gap_disc_cancel();
+            }
+        } else if (command.kind == BleClientCommandKind::Connect) {
             if (connecting_.exchange(true) ||
                 device_.load(std::memory_order_acquire) != nullptr) {
                 connecting_.store(false);
@@ -105,8 +118,9 @@ void BleHogpClient::worker_task() {
                 continue;
             }
             (void)ble_gap_disc_cancel();
-            candidate_address_ = command.peer.bytes;
-            candidate_address_type_ = command.peer.type;
+            const BlePeerAddress peer = normalize_ble_address(command.peer);
+            candidate_address_ = peer.bytes;
+            candidate_address_type_ = peer.type;
             device_.store(esp_hidh_dev_open(candidate_address_.data(),
                                             ESP_HID_TRANSPORT_BLE,
                                             candidate_address_type_),
@@ -132,11 +146,15 @@ void BleHogpClient::worker_task() {
                 }
                 resume_or_scan();
             }
-        } else if (device_.load(std::memory_order_acquire) != nullptr) {
-            pending_forget_ = command.peer;
-            pending_forget_valid_.store(true, std::memory_order_release);
         } else {
-            forget_peer(command.peer);
+            const BlePeerAddress peer = normalize_ble_address(command.peer);
+            const auto current = connected_identity();
+            if (current.has_value() && *current == peer) {
+                pending_forget_ = peer;
+                pending_forget_valid_.store(true, std::memory_order_release);
+            } else {
+                forget_peer(peer);
+            }
         }
     }
 }
@@ -173,7 +191,8 @@ int BleHogpClient::scan_callback(ble_gap_event* event, void* arg) {
         BleAdvertisement advertisement{};
         std::copy_n(event->disc.addr.val, advertisement.address.bytes.size(),
                     advertisement.address.bytes.begin());
-        advertisement.address.type = event->disc.addr.type;
+        advertisement.address.type = normalize_ble_address_type(
+            event->disc.addr.type);
         if (fields.name != nullptr && fields.name_len != 0) {
             advertisement.name = std::string_view(
                 reinterpret_cast<const char*>(fields.name), fields.name_len);
@@ -197,7 +216,7 @@ int BleHogpClient::scan_callback(ble_gap_event* event, void* arg) {
                 uint8_t identity_type = 0;
                 if (ble_gap_rpa_resolve(rpa.data(), identity.bytes.data(),
                                         &identity_type)) {
-                    identity.type = identity_type;
+                    identity.type = normalize_ble_address_type(identity_type);
                     resolved = identity;
                 }
             }
@@ -237,7 +256,10 @@ int BleHogpClient::gap_listener_callback(ble_gap_event* event, void* arg) {
 
 void BleHogpClient::resume_or_scan() {
     forwarding_.store(true);
-    if (!synced_.load() || device_.load(std::memory_order_acquire) != nullptr ||
+    const bool has_device =
+        device_.load(std::memory_order_acquire) != nullptr;
+    if (!synced_.load() ||
+        (has_device && !portal_scanning_.load(std::memory_order_acquire)) ||
         connecting_.load() ||
         ble_gap_disc_active()) {
         return;
@@ -245,7 +267,7 @@ void BleHogpClient::resume_or_scan() {
     uint8_t own_address_type = 0;
     if (ble_hs_id_infer_auto(0, &own_address_type) != 0) return;
     ble_gap_disc_params params{};
-    params.filter_duplicates = 1;
+    params.filter_duplicates = 0;
     params.passive = 0;
     params.itvl = 0x30;
     params.window = 0x30;
@@ -292,8 +314,8 @@ void BleHogpClient::on_hidh_event(esp_hidh_event_t event,
             request_low_latency_interval(data.open.dev);
             arbiter_.on_connected(mouse_bridge::InputSource::Ble, now_us);
             if (selection_delegate_ != nullptr) {
-                BlePeerAddress observed{candidate_address_,
-                                        candidate_address_type_};
+                BlePeerAddress observed = normalize_ble_address(
+                    {candidate_address_, candidate_address_type_});
                 BlePeerAddress identity = observed;
                 ble_addr_t peer{};
                 peer.type = candidate_address_type_;
@@ -301,7 +323,8 @@ void BleHogpClient::on_hidh_event(esp_hidh_event_t event,
                           peer.val);
                 ble_gap_conn_desc connection{};
                 if (ble_gap_conn_find_by_addr(&peer, &connection) == 0) {
-                    identity.type = connection.peer_id_addr.type;
+                    identity.type = normalize_ble_address_type(
+                        connection.peer_id_addr.type);
                     std::copy_n(connection.peer_id_addr.val,
                                 identity.bytes.size(), identity.bytes.begin());
                 }
@@ -312,6 +335,7 @@ void BleHogpClient::on_hidh_event(esp_hidh_event_t event,
                                            : std::string_view{},
                     static_cast<uint32_t>(now_us / 1'000));
             }
+            resume_or_scan();
         } else {
             if (selection_delegate_ != nullptr) {
                 selection_delegate_->on_attempt_failed(
@@ -354,6 +378,7 @@ void BleHogpClient::on_hidh_event(esp_hidh_event_t event,
 }
 
 void BleHogpClient::forget_peer(BlePeerAddress peer) {
+    peer = normalize_ble_address(peer);
     ble_addr_t address{};
     address.type = peer.type;
     std::copy(peer.bytes.begin(), peer.bytes.end(), address.val);
@@ -361,6 +386,29 @@ void BleHogpClient::forget_peer(BlePeerAddress peer) {
     if (result != 0 && result != BLE_HS_ENOENT) {
         ESP_LOGW(kTag, "Failed to forget peer, rc=%d", result);
     }
+}
+
+std::optional<BlePeerAddress> BleHogpClient::connected_identity() const {
+    auto* device = device_.load(std::memory_order_acquire);
+    if (device == nullptr) return std::nullopt;
+    const uint8_t* bda = esp_hidh_dev_bda_get(device);
+    if (bda == nullptr) return std::nullopt;
+
+    ble_addr_t observed{};
+    observed.type = candidate_address_type_;
+    std::copy_n(bda, sizeof(observed.val), observed.val);
+    ble_gap_conn_desc connection{};
+    if (ble_gap_conn_find_by_addr(&observed, &connection) != 0) {
+        BlePeerAddress fallback{};
+        fallback.type = candidate_address_type_;
+        std::copy_n(bda, fallback.bytes.size(), fallback.bytes.begin());
+        return normalize_ble_address(fallback);
+    }
+    BlePeerAddress identity{};
+    identity.type = normalize_ble_address_type(connection.peer_id_addr.type);
+    std::copy_n(connection.peer_id_addr.val, identity.bytes.size(),
+                identity.bytes.begin());
+    return identity;
 }
 
 void BleHogpClient::request_low_latency_interval(esp_hidh_dev_t* device) {

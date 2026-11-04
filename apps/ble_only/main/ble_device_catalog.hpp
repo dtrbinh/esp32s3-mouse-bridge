@@ -28,6 +28,7 @@ public:
 
     void observe(const BleAdvertisement& advertisement, uint32_t now_ms);
     [[nodiscard]] BleNearbySnapshot snapshot(uint32_t now_ms) const;
+    [[nodiscard]] size_t active_count(uint32_t now_ms) const;
     void clear();
 
 private:

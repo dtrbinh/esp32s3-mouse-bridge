@@ -55,6 +55,7 @@ public:
     void request_close();
     void request_connect(BlePeerAddress peer);
     void request_disconnect();
+    void forget(BlePeerAddress peer);
     void on_connected(BlePeerAddress peer, uint32_t now_ms);
     void on_disconnected(uint32_t now_ms);
     void on_failed(BlePeerAddress peer, BleAttemptError error);

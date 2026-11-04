@@ -129,7 +129,7 @@ void diagnostics_task(void* arg) {
         vTaskDelay(pdMS_TO_TICKS(5000));
         const uint32_t now_ms =
             static_cast<uint32_t>(esp_timer_get_time() / 1'000);
-        const auto portal = context.manager->snapshot(now_ms);
+        const auto portal = context.manager->status(now_ms);
         ESP_LOGI(
             "MB_DIAG",
             "board=ble_only source=%s ble_connections=%lu "
@@ -145,8 +145,8 @@ void diagnostics_task(void* arg) {
             static_cast<unsigned long>(context.usb->timeout_count()),
             static_cast<unsigned long>(context.usb->resume_count()),
             portal.setup.portal_active ? "on" : "off",
-            static_cast<unsigned>(portal.saved.count),
-            static_cast<unsigned>(portal.nearby.count),
+            static_cast<unsigned>(portal.saved_count),
+            static_cast<unsigned>(portal.nearby_count),
             setup_phase_name(portal.setup.phase));
     }
 }
@@ -165,18 +165,31 @@ void setup_task(void* arg) {
             case BleManagerDecisionKind::StartPortal: {
                 const esp_err_t result = context.portal->start();
                 if (result == ESP_OK) {
-                    context.manager->set_portal_active(true);
+                    complete = context.ble->enqueue_control(
+                        {BleClientCommandKind::StartScan, {}});
+                    if (complete) context.manager->set_portal_active(true);
                 } else {
-                    context.manager->portal_start_failed();
+                    complete = false;
                     ESP_LOGE("ble_only_setup", "Portal unavailable: %s",
                              esp_err_to_name(result));
                 }
                 break;
             }
-            case BleManagerDecisionKind::StopPortal:
-                context.portal->stop();
-                context.manager->set_portal_active(false);
+            case BleManagerDecisionKind::StopPortal: {
+                const esp_err_t result = context.portal->stop();
+                complete = result == ESP_OK;
+                if (complete) {
+                    complete = context.ble->enqueue_control(
+                        {BleClientCommandKind::StopScan, {}});
+                }
+                if (complete) {
+                    context.manager->set_portal_active(false);
+                } else if (result != ESP_OK) {
+                    ESP_LOGE("ble_only_setup", "Portal shutdown failed: %s",
+                             esp_err_to_name(result));
+                }
                 break;
+            }
             case BleManagerDecisionKind::Connect:
                 complete = pending->peer.has_value() &&
                            context.ble->enqueue_control(

@@ -31,13 +31,19 @@ struct BleManagerDecision {
     std::optional<BlePeerAddress> peer{};
 };
 
+struct BleManagerStatus {
+    BleSetupSnapshot setup{};
+    size_t saved_count{};
+    size_t nearby_count{};
+};
+
 class BleDeviceManager final : public BleSelectionDelegate {
 public:
     explicit BleDeviceManager(BleHistoryPersistence& persistence)
         : persistence_(persistence) {}
 
     void start(uint32_t now_ms);
-    void request_connect(BlePeerAddress peer);
+    bool request_connect(BlePeerAddress peer);
     void request_disconnect();
     void request_forget(BlePeerAddress identity);
     void request_portal();
@@ -46,6 +52,7 @@ public:
     void portal_start_failed();
     std::optional<BleManagerDecision> service(uint32_t now_ms);
     [[nodiscard]] PortalView snapshot(uint32_t now_ms) const;
+    [[nodiscard]] BleManagerStatus status(uint32_t now_ms) const;
 
     void on_advertisement(
         const BleAdvertisement& advertisement,

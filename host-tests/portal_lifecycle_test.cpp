@@ -15,9 +15,10 @@ constexpr std::array<PortalResource, 5> kForward{
 
 void drain_and_check(PortalLifecycle& lifecycle, size_t acquired) {
     for (size_t i = acquired; i > 0; --i) {
-        assert(lifecycle.take_release() == kForward[i - 1]);
+        assert(lifecycle.next_release() == kForward[i - 1]);
+        assert(lifecycle.mark_released(kForward[i - 1]));
     }
-    assert(!lifecycle.take_release().has_value());
+    assert(!lifecycle.next_release().has_value());
     assert(!lifecycle.active());
 }
 }  // namespace
@@ -52,7 +53,10 @@ int main() {
 
     lifecycle.stop();
     lifecycle.stop();  // Idempotent: must not duplicate releases.
+    assert(lifecycle.next_release() == PortalResource::Dns);
+    assert(!lifecycle.mark_released(PortalResource::Http));
+    assert(lifecycle.next_release() == PortalResource::Dns);
     drain_and_check(lifecycle, kForward.size());
     lifecycle.stop();
-    assert(!lifecycle.take_release().has_value());
+    assert(!lifecycle.next_release().has_value());
 }

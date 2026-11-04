@@ -60,6 +60,7 @@ private:
     void request_low_latency_interval(esp_hidh_dev_t* device);
     void decode_input(const esp_hidh_event_data_t& data);
     void forget_peer(BlePeerAddress peer);
+    [[nodiscard]] std::optional<BlePeerAddress> connected_identity() const;
 
     static BleHogpClient* instance_;
     SourceArbiter& arbiter_;
@@ -82,6 +83,7 @@ private:
     std::atomic<bool> synced_{};
     std::atomic<bool> connecting_{};
     std::atomic<bool> connected_{};
+    std::atomic<bool> portal_scanning_{};
     std::atomic<uint16_t> negotiated_interval_units_{};
     std::atomic<uint32_t> connections_{};
     ble_gap_event_listener gap_listener_{};

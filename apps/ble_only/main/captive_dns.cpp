@@ -15,7 +15,9 @@ constexpr char kTag[] = "captive_dns";
 }
 
 esp_err_t CaptiveDns::start(std::array<uint8_t, 4> ipv4, BaseType_t core) {
-    if (active() || socket_ >= 0) return ESP_ERR_INVALID_STATE;
+    if (active() || socket_ >= 0 || task_handle_ != nullptr) {
+        return ESP_ERR_INVALID_STATE;
+    }
     ipv4_ = ipv4;
     stopping_.store(false, std::memory_order_release);
     stopped_ = xSemaphoreCreateBinaryStatic(&stopped_control_);
@@ -55,8 +57,8 @@ esp_err_t CaptiveDns::start(std::array<uint8_t, 4> ipv4, BaseType_t core) {
     return ESP_OK;
 }
 
-void CaptiveDns::stop() {
-    if (!active() && socket_ < 0) return;
+esp_err_t CaptiveDns::stop() {
+    if (!active() && socket_ < 0 && task_handle_ == nullptr) return ESP_OK;
     stopping_.store(true, std::memory_order_release);
     const int socket = socket_;
     socket_ = -1;
@@ -67,10 +69,12 @@ void CaptiveDns::stop() {
     if (task_handle_ != nullptr && stopped_ != nullptr) {
         if (xSemaphoreTake(stopped_, pdMS_TO_TICKS(1000)) != pdTRUE) {
             ESP_LOGW(kTag, "DNS task stop timed out");
+            return ESP_ERR_TIMEOUT;
         }
     }
     task_handle_ = nullptr;
     running_.store(false, std::memory_order_release);
+    return ESP_OK;
 }
 
 void CaptiveDns::task_entry(void* argument) {

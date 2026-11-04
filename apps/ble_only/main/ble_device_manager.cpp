@@ -13,13 +13,16 @@ void BleDeviceManager::start(uint32_t now_ms) {
     extra_count_ = 0;
 }
 
-void BleDeviceManager::request_connect(BlePeerAddress peer) {
+bool BleDeviceManager::request_connect(BlePeerAddress peer) {
     Guard guard(lock_);
+    peer = normalize_ble_address(peer);
+    if (setup_.snapshot().attempt.has_value()) return false;
     history_.disconnect_without_forget();
     history_.select(peer);
     history_dirty_ = true;
     persistence_failed_ = false;
     setup_.request_connect(peer);
+    return true;
 }
 
 void BleDeviceManager::request_disconnect() {
@@ -31,9 +34,11 @@ void BleDeviceManager::request_disconnect() {
 
 void BleDeviceManager::request_forget(BlePeerAddress identity) {
     Guard guard(lock_);
-    const auto connected = setup_.snapshot().connected;
-    if (connected == identity) {
+    identity = normalize_ble_address(identity);
+    if (history_.selected() == identity) {
         setup_.request_disconnect();
+    } else {
+        setup_.forget(identity);
     }
     if (history_.forget(identity)) history_dirty_ = true;
     push_extra({BleManagerDecisionKind::Forget, identity});
@@ -126,26 +131,45 @@ PortalView BleDeviceManager::snapshot(uint32_t now_ms) const {
     return view;
 }
 
+BleManagerStatus BleDeviceManager::status(uint32_t now_ms) const {
+    Guard guard(lock_);
+    BleManagerStatus result{};
+    result.setup = setup_.snapshot();
+    if (persistence_failed_) {
+        result.setup.error = BleAttemptError::PersistenceFailed;
+    }
+    result.saved_count = history_.count();
+    result.nearby_count = catalog_.active_count(now_ms);
+    return result;
+}
+
 void BleDeviceManager::on_advertisement(
     const BleAdvertisement& advertisement,
     std::optional<BlePeerAddress> resolved_identity, uint32_t now_ms) {
     Guard guard(lock_);
-    catalog_.observe(advertisement, now_ms);
+    BleAdvertisement normalized = advertisement;
+    normalized.address = normalize_ble_address(normalized.address);
+    catalog_.observe(normalized, now_ms);
     const auto selected = history_.selected();
     const auto setup = setup_.snapshot();
     if (!selected.has_value() || setup.connected.has_value() ||
         setup.attempt.has_value()) {
         return;
     }
-    const BlePeerAddress comparison =
-        resolved_identity.value_or(advertisement.address);
-    if (comparison == *selected) setup_.request_connect(advertisement.address);
+    const BlePeerAddress comparison = normalize_ble_address(
+        resolved_identity.value_or(normalized.address));
+    if (comparison == normalize_ble_address(*selected)) {
+        setup_.request_connect(normalized.address);
+    }
 }
 
 void BleDeviceManager::on_validated_connection(
-    BlePeerAddress, BlePeerAddress stable_identity, std::string_view name,
+    BlePeerAddress observed, BlePeerAddress stable_identity, std::string_view name,
     uint32_t now_ms) {
     Guard guard(lock_);
+    observed = normalize_ble_address(observed);
+    stable_identity = normalize_ble_address(stable_identity);
+    if (setup_.snapshot().attempt != observed) return;
     history_.record_success(stable_identity, name);
     history_dirty_ = true;
     persistence_failed_ = false;

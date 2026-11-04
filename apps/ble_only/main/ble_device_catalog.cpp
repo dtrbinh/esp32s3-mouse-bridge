@@ -144,12 +144,30 @@ BleNearbySnapshot BleDeviceCatalog::snapshot(uint32_t now_ms) const {
             result.devices[result.count++] = devices_[i];
         }
     }
-    std::sort(result.devices.begin(), result.devices.begin() + result.count,
-              [](const BleNearbyDevice& left, const BleNearbyDevice& right) {
-                  if (left.rssi != right.rssi) return left.rssi > right.rssi;
-                  return address_before(left.address, right.address);
-              });
+    const auto comes_before = [](const BleNearbyDevice& left,
+                                 const BleNearbyDevice& right) {
+        if (left.rssi != right.rssi) return left.rssi > right.rssi;
+        return address_before(left.address, right.address);
+    };
+    for (size_t i = 1; i < result.count; ++i) {
+        const BleNearbyDevice key = result.devices[i];
+        size_t position = i;
+        while (position > 0 &&
+               comes_before(key, result.devices[position - 1])) {
+            result.devices[position] = result.devices[position - 1];
+            --position;
+        }
+        result.devices[position] = key;
+    }
     return result;
+}
+
+size_t BleDeviceCatalog::active_count(uint32_t now_ms) const {
+    size_t active = 0;
+    for (size_t i = 0; i < count_; ++i) {
+        if (!is_stale(now_ms, devices_[i].last_seen_ms)) ++active;
+    }
+    return active;
 }
 
 void BleDeviceCatalog::clear() {

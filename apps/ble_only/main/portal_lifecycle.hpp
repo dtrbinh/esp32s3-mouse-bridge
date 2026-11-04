@@ -19,7 +19,8 @@ public:
     bool mark_acquired(PortalResource resource);
     void fail();
     void stop();
-    [[nodiscard]] std::optional<PortalResource> take_release();
+    [[nodiscard]] std::optional<PortalResource> next_release() const;
+    bool mark_released(PortalResource resource);
     [[nodiscard]] bool active() const;
 
 private:

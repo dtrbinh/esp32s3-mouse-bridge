@@ -54,7 +54,7 @@ void StatusLed::task() {
     while (true) {
         const uint32_t now_ms =
             static_cast<uint32_t>(esp_timer_get_time() / 1'000);
-        const auto setup = manager_.snapshot(now_ms).setup;
+        const auto setup = manager_.status(now_ms).setup;
         const LedRgb color = model_.update(
             ble_.connected(), setup.portal_active, mode_.mods_enabled(),
             mode_.selected_profile(), now_ms);

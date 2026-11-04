@@ -35,9 +35,12 @@ void BleSetupState::start(std::optional<BlePeerAddress> selected,
 
 void BleSetupState::tick(uint32_t now_ms) {
     last_now_ms_ = now_ms;
-    if (snapshot_.phase == BleSetupPhase::ScanningSelected &&
+    if (!snapshot_.portal_desired && snapshot_.selected.has_value() &&
+        !snapshot_.connected.has_value() &&
         now_ms - reconnect_started_ms_ >= kPortalFallbackMs) {
-        snapshot_.phase = BleSetupPhase::Portal;
+        if (snapshot_.phase == BleSetupPhase::ScanningSelected) {
+            snapshot_.phase = BleSetupPhase::Portal;
+        }
         ensure_portal();
     }
     if (snapshot_.phase == BleSetupPhase::SuccessDelay &&
@@ -94,15 +97,27 @@ void BleSetupState::request_connect(BlePeerAddress peer) {
 }
 
 void BleSetupState::request_disconnect() {
+    const bool attempt_in_progress = snapshot_.attempt.has_value();
+    const auto attempted_peer = snapshot_.attempt;
     snapshot_.selected.reset();
     snapshot_.attempt.reset();
     snapshot_.wifi_shutdown_due_ms.reset();
     snapshot_.error = BleAttemptError::None;
     if (snapshot_.connected.has_value()) {
         push(BleSetupActionKind::Disconnect, snapshot_.connected);
+    } else if (attempt_in_progress) {
+        push(BleSetupActionKind::Disconnect, attempted_peer);
     }
     snapshot_.phase = BleSetupPhase::Portal;
     ensure_portal();
+}
+
+void BleSetupState::forget(BlePeerAddress peer) {
+    if (snapshot_.selected != peer && snapshot_.attempt != peer &&
+        snapshot_.connected != peer) {
+        return;
+    }
+    request_disconnect();
 }
 
 void BleSetupState::on_connected(BlePeerAddress peer, uint32_t now_ms) {

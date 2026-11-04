@@ -12,7 +12,7 @@
 class CaptiveDns {
 public:
     esp_err_t start(std::array<uint8_t, 4> ipv4, BaseType_t core);
-    void stop();
+    esp_err_t stop();
     [[nodiscard]] bool active() const {
         return running_.load(std::memory_order_acquire);
     }

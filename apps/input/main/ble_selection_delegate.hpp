@@ -15,6 +15,8 @@ enum class BleClientCommandKind : uint8_t {
     Connect,
     Disconnect,
     Forget,
+    StartScan,
+    StopScan,
 };
 
 struct BleClientCommand {

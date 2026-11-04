@@ -15,7 +15,7 @@ public:
     explicit SetupPortal(BleDeviceManager& manager) : manager_(manager) {}
 
     esp_err_t start();
-    void stop();
+    esp_err_t stop();
     [[nodiscard]] bool active() const { return lifecycle_.active(); }
 
 private:
@@ -31,12 +31,13 @@ private:
     esp_err_t configure_ap();
     esp_err_t start_http();
     esp_err_t read_peer(httpd_req_t* request, BlePeerAddress& peer);
-    void unwind();
+    esp_err_t unwind();
 
     BleDeviceManager& manager_;
     PortalLifecycle lifecycle_{};
     CaptiveDns dns_{};
     esp_netif_t* ap_netif_{};
+    bool netif_attached_{};
     httpd_handle_t http_{};
     std::array<char, 8192> json_buffer_{};
 };

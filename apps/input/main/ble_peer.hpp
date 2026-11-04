@@ -21,5 +21,14 @@ struct BleAdvertisement {
     bool advertises_hid{};
 };
 
+constexpr uint8_t normalize_ble_address_type(uint8_t type) {
+    return type == 2 ? 0 : (type == 3 ? 1 : type);
+}
+
+constexpr BlePeerAddress normalize_ble_address(BlePeerAddress address) {
+    address.type = normalize_ble_address_type(address.type);
+    return address;
+}
+
 bool format_ble_address(const BlePeerAddress& address,
                         std::span<char> destination);

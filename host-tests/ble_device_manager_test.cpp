@@ -48,7 +48,8 @@ int main() {
     assert(manager.snapshot(10).nearby.count == 1);
     assert(!manager.service(10).has_value());
 
-    manager.request_connect(freewolf_rpa);
+    assert(manager.request_connect(freewolf_rpa));
+    assert(!manager.request_connect(address(0x71, 1)));
     auto decision = take(manager, BleManagerDecisionKind::Connect, 20);
     assert(decision.peer == freewolf_rpa);
     manager.on_validated_connection(freewolf_rpa, freewolf_id,
@@ -59,6 +60,10 @@ int main() {
     assert(view.setup.connected == freewolf_id);
     assert(view.saved.count == 1);
     assert(view.saved.devices[0].identity == freewolf_id);
+    const auto summary = manager.status(30);
+    assert(summary.setup.connected == freewolf_id);
+    assert(summary.saved_count == 1);
+    assert(summary.nearby_count == 1);
 
     FakePersistence reconnect_persistence;
     reconnect_persistence.loaded.record_success(freewolf_id, "Freewolf X7");
@@ -77,12 +82,36 @@ int main() {
     take(reconnect, BleManagerDecisionKind::StartPortal, 130);
     assert(!reconnect.snapshot(130).setup.selected.has_value());
 
+    FakePersistence controller_identity_persistence;
+    controller_identity_persistence.loaded.record_success(address(0x17, 0),
+                                                           "Public mouse");
+    BleDeviceManager controller_identity(controller_identity_persistence);
+    controller_identity.start(0);
+    controller_identity.on_advertisement(
+        advertisement(address(0x17, 2), "Public mouse"), address(0x17, 2), 1);
+    decision = take(controller_identity, BleManagerDecisionKind::Connect, 1);
+    assert(decision.peer == address(0x17, 0));
+
+    FakePersistence race_persistence;
+    BleDeviceManager race(race_persistence);
+    race.start(0);
+    take(race, BleManagerDecisionKind::StartPortal, 0);
+    const auto race_a = address(0x31, 1);
+    const auto race_b = address(0x32, 1);
+    assert(race.request_connect(race_a));
+    assert(!race.request_connect(race_b));
+    take(race, BleManagerDecisionKind::Connect, 1);
+    race.on_validated_connection(race_b, race_b, "stale", 2);
+    assert(!race.snapshot(2).setup.connected.has_value());
+    race.on_validated_connection(race_a, race_a, "A", 3);
+    assert(race.snapshot(3).setup.connected == race_a);
+
     FakePersistence failing_persistence;
     failing_persistence.save_ok = false;
     BleDeviceManager persistence_failure(failing_persistence);
     persistence_failure.start(0);
     take(persistence_failure, BleManagerDecisionKind::StartPortal, 0);
-    persistence_failure.request_connect(freewolf_rpa);
+    assert(persistence_failure.request_connect(freewolf_rpa));
     take(persistence_failure, BleManagerDecisionKind::Connect, 1);
     persistence_failure.on_validated_connection(
         freewolf_rpa, freewolf_id, "Freewolf X7", 2);
@@ -100,4 +129,26 @@ int main() {
     decision = take(manager, BleManagerDecisionKind::Forget, 40);
     assert(decision.peer == freewolf_id);
     assert(manager.snapshot(40).saved.count == 0);
+
+    FakePersistence forget_persistence;
+    forget_persistence.loaded.record_success(freewolf_id, "Freewolf X7");
+    BleDeviceManager forget_selected_manager(forget_persistence);
+    forget_selected_manager.start(0);
+    forget_selected_manager.request_forget(freewolf_id);
+    assert(!forget_selected_manager.snapshot(0).setup.selected.has_value());
+    take(forget_selected_manager, BleManagerDecisionKind::StartPortal, 0);
+    take(forget_selected_manager, BleManagerDecisionKind::Forget, 0);
+
+    FakePersistence forget_attempt_persistence;
+    forget_attempt_persistence.loaded.record_success(freewolf_id,
+                                                      "Freewolf X7");
+    BleDeviceManager forget_attempt(forget_attempt_persistence);
+    forget_attempt.start(0);
+    forget_attempt.on_advertisement(
+        advertisement(freewolf_rpa, "Freewolf X7"), freewolf_id, 1);
+    take(forget_attempt, BleManagerDecisionKind::Connect, 1);
+    forget_attempt.request_forget(freewolf_id);
+    take(forget_attempt, BleManagerDecisionKind::Disconnect, 2);
+    take(forget_attempt, BleManagerDecisionKind::StartPortal, 2);
+    take(forget_attempt, BleManagerDecisionKind::Forget, 2);
 }
