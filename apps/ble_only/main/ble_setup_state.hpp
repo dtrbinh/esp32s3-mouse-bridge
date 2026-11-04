@@ -70,7 +70,6 @@ public:
 
 private:
     static constexpr uint32_t kPortalFallbackMs = 10'000;
-    static constexpr uint32_t kSuccessDelayMs = 3'000;
     static constexpr size_t kActionCapacity = 4;
 
     void push(BleSetupActionKind kind,

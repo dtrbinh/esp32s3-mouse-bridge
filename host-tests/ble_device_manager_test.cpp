@@ -223,6 +223,7 @@ int main() {
 
     manager.request_forget(freewolf_id);
     take(manager, BleManagerDecisionKind::Disconnect, 40);
+    take(manager, BleManagerDecisionKind::StartPortal, 40);
     decision = take(manager, BleManagerDecisionKind::Forget, 40);
     assert(decision.peer == freewolf_id);
     assert(manager.snapshot(40).saved.count == 0);

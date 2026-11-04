@@ -127,8 +127,10 @@ void BleSetupState::on_connected(BlePeerAddress peer, uint32_t now_ms) {
     snapshot_.attempt.reset();
     snapshot_.error = BleAttemptError::None;
     if (snapshot_.portal_desired || snapshot_.portal_active) {
+        // Queue shutdown from service()/tick(), not the BLE callback. A link
+        // loss before the setup task runs can then cancel the shutdown safely.
         snapshot_.phase = BleSetupPhase::SuccessDelay;
-        snapshot_.wifi_shutdown_due_ms = now_ms + kSuccessDelayMs;
+        snapshot_.wifi_shutdown_due_ms = now_ms;
     } else {
         snapshot_.phase = BleSetupPhase::Connected;
         snapshot_.wifi_shutdown_due_ms.reset();

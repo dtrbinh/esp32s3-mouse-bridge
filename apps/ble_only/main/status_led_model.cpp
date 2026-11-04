@@ -8,7 +8,10 @@ constexpr uint32_t kScanPeriodMs = 300;
 constexpr uint32_t kScanOnMs = 150;
 constexpr uint32_t kConnectedPeriodMs = 2'000;
 constexpr uint32_t kConnectedOnMs = 1'000;
-constexpr uint16_t kChannelBudget = 76;
+constexpr uint16_t kPreviousChannelBudget = 76;
+constexpr uint16_t kBrightnessPercent = 30;
+constexpr uint16_t kChannelBudget =
+    (kPreviousChannelBudget * kBrightnessPercent + 50) / 100;
 
 constexpr LedRgb kScanYellow{255, 192, 0};
 constexpr LedRgb kConnectedGreen{0, 255, 0};

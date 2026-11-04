@@ -115,12 +115,12 @@ int main() {
     take(success, BleSetupActionKind::Connect);
     success.on_connected(mouse_b, 1'000);
     assert(success.snapshot().phase == BleSetupPhase::SuccessDelay);
-    assert(success.snapshot().wifi_shutdown_due_ms == 4'000);
-    success.tick(3'999);
-    assert(!success.take_action().has_value());
-    success.tick(4'000);
+    assert(success.snapshot().wifi_shutdown_due_ms == 1'000);
+    success.tick(1'000);
     take(success, BleSetupActionKind::StopPortal);
     assert(success.snapshot().phase == BleSetupPhase::Connected);
+    assert(!success.snapshot().portal_desired);
+    assert(!success.snapshot().wifi_shutdown_due_ms.has_value());
 
     BleSetupState cancelled_success;
     cancelled_success.start(std::nullopt, 0);

@@ -47,8 +47,8 @@ void StatusLed::task_entry(void* arg) {
 }
 
 void StatusLed::task() {
-    ESP_LOGI(kTag, "core=%d gpio=%d rgb_budget=76", xPortGetCoreID(),
-             CONFIG_BLE_ONLY_LED_GPIO);
+    ESP_LOGI(kTag, "core=%d gpio=%d brightness=30%% rgb_budget=23",
+             xPortGetCoreID(), CONFIG_BLE_ONLY_LED_GPIO);
     LedRgb previous{};
     bool previous_valid = false;
     while (true) {

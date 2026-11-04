@@ -47,7 +47,7 @@ int main() {
         StatusLedModel model;
         profiles[i] = model.update(true, false, true, i + 1, 1'000);
         assert(profiles[i] != off);
-        assert(channel_sum(profiles[i]) <= 76);
+        assert(channel_sum(profiles[i]) <= 23);
         assert(model.update(true, false, true, i + 1, 99'000) == profiles[i]);
         for (size_t earlier = 0; earlier < i; ++earlier) {
             assert(profiles[i] != profiles[earlier]);
@@ -61,12 +61,12 @@ int main() {
 
     assert(limit_led_rgb({0, 0, 0}) == off);
     const LedRgb mixed = limit_led_rgb({255, 128, 64});
-    assert(channel_sum(mixed) <= 76);
+    assert(channel_sum(mixed) <= 23);
     assert(mixed.red > mixed.green && mixed.green > mixed.blue);
     assert(std::abs(static_cast<int>(mixed.red) * 128 -
                     static_cast<int>(mixed.green) * 255) <= 255);
     assert(std::abs(static_cast<int>(mixed.green) * 64 -
                     static_cast<int>(mixed.blue) * 128) <= 128);
-    assert(channel_sum(yellow) <= 76);
-    assert(channel_sum(green) <= 76);
+    assert(channel_sum(yellow) <= 23);
+    assert(channel_sum(green) <= 23);
 }
