@@ -63,20 +63,43 @@ int main() {
     assert(frame.x == 0 && frame.y == 0);
     assert(frame.buttons == 0x8001);
 
-    // Twenty milliseconds releases all held buttons.
-    assert(state.update_timeouts(30'000));
-    assert(!state.update_timeouts(30'001));
+    // Event-driven BLE mice can remain silent for the entire button hold.
+    // Idle time must never synthesize a release.
+    assert(!state.update_timeouts(30'000));
     frame = state.tick(30'000, false);
+    assert(frame.buttons == 0x8001);
+    assert(frame.link_active);
+
+    // A later movement report with the same held state must not create a
+    // second click, and only the physical release clears the buttons.
+    MouseReport held_movement{};
+    held_movement.x = 3;
+    held_movement.buttons = 0x8001;
+    state.on_packet(held_movement, 4, 31'000);
+    frame = state.tick(31'500, false);
+    assert(frame.buttons == 0x8001 && frame.x == 3);
+    MouseReport physical_release{};
+    state.on_packet(physical_release, 5, 32'000);
+    frame = state.tick(32'500, false);
     assert(frame.buttons == 0);
-    assert(!frame.link_active);
-    assert(state.timeout_count() == 1);
-    (void)state.tick(31'000, false);
+    state.on_packet(physical_release, 6, 33'000);
+    frame = state.tick(33'500, false);
+    assert(frame.buttons == 0);
+    assert(state.timeout_count() == 0);
+
+    // A disconnect boundary is the failsafe release for a lost link.
+    state.on_packet(first, 7, 34'000);
+    MouseReport disconnect_boundary{};
+    disconnect_boundary.flags = ReportFlags::Boundary;
+    state.on_packet(disconnect_boundary, 8, 34'500);
+    frame = state.tick(35'000, false);
+    assert(frame.buttons == 0 && !frame.link_active);
     assert(state.timeout_count() == 1);
 
     // USB resume always begins with a release-all report.
-    state.on_packet(first, 4, 31'000);
-    state.on_usb_resume(31'500);
-    frame = state.tick(32'000, false);
+    state.on_packet(first, 9, 36'000);
+    state.on_usb_resume(36'500);
+    frame = state.tick(37'000, false);
     assert(frame.x == 0 && frame.y == 0 && frame.buttons == 0);
 
     MouseReport large{};
@@ -84,8 +107,8 @@ int main() {
     large.y = std::numeric_limits<int16_t>::min();
     large.wheel = std::numeric_limits<int8_t>::max();
     large.pan = std::numeric_limits<int8_t>::min();
-    state.on_packet(large, 5, 40'000);
-    state.on_packet(large, 6, 40'500);
+    state.on_packet(large, 10, 40'000);
+    state.on_packet(large, 11, 40'500);
     frame = state.tick(41'000, false);
     assert(frame.x == std::numeric_limits<int16_t>::max());
     assert(frame.y == std::numeric_limits<int16_t>::min());
@@ -100,7 +123,7 @@ int main() {
     MouseReport skipped{};
     skipped.x = 12;
     skipped.y = -9;
-    state.on_packet(skipped, 7, 50'000);
+    state.on_packet(skipped, 12, 50'000);
     state.update_timeouts(51'000);
     frame = state.tick(51'000, false);
     assert(frame.x == 12 && frame.y == -9);

@@ -23,6 +23,15 @@ int32_t saturating_accumulate(int32_t current, int32_t delta,
 
 void OutputState::on_packet(const mouse_bridge::MouseReport& report,
                             uint32_t, uint64_t rx_us) {
+    const bool boundary = mouse_bridge::has_flag(
+        report.flags, mouse_bridge::ReportFlags::Boundary);
+    if (boundary) {
+        if (buttons_ != 0) ++timeout_count_;
+        link_active_ = false;
+    } else if (mouse_bridge::has_flag(
+                   report.flags, mouse_bridge::ReportFlags::Connected)) {
+        link_active_ = true;
+    }
     x_ = saturating_accumulate(x_, report.x, INT16_MIN, INT16_MAX);
     y_ = saturating_accumulate(y_, report.y, INT16_MIN, INT16_MAX);
     const bool generated = mouse_bridge::has_flag(
@@ -38,7 +47,6 @@ void OutputState::on_packet(const mouse_bridge::MouseReport& report,
     buttons_ = report.buttons;
     last_packet_us_ = rx_us;
     received_ = true;
-    timeout_latched_ = false;
 }
 
 bool OutputState::update_timeouts(uint64_t now_us) {
@@ -51,25 +59,14 @@ bool OutputState::update_timeouts(uint64_t now_us) {
                   wheel_ != 0 || pan_ != 0;
         x_ = y_ = bypass_x_ = bypass_y_ = wheel_ = pan_ = 0;
     }
-    if (age >= kReleaseTimeoutUs) {
-        changed = changed || buttons_ != 0;
-        buttons_ = 0;
-        if (received_ && !timeout_latched_) {
-            ++timeout_count_;
-            timeout_latched_ = true;
-        }
-    }
     return changed;
 }
 
 OutputFrame OutputState::tick(uint64_t now_us, bool bypass) {
     (void)update_timeouts(now_us);
-    const uint64_t age = received_ && now_us >= last_packet_us_
-                             ? now_us - last_packet_us_
-                             : UINT64_MAX;
 
     OutputFrame frame{};
-    frame.link_active = age < kReleaseTimeoutUs;
+    frame.link_active = link_active_;
     if (!resume_release_pending_) {
         frame.x = clamp_to<int16_t>(bypass ? bypass_x_ : x_);
         frame.y = clamp_to<int16_t>(bypass ? bypass_y_ : y_);
@@ -90,6 +87,6 @@ void OutputState::on_usb_resume(uint64_t) {
     on_usb_suspend();
     buttons_ = 0;
     received_ = false;
-    timeout_latched_ = false;
+    link_active_ = false;
     resume_release_pending_ = true;
 }

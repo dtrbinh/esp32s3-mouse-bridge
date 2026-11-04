@@ -25,7 +25,6 @@ public:
 
 private:
     static constexpr uint64_t kMotionTimeoutUs = 5'000;
-    static constexpr uint64_t kReleaseTimeoutUs = 20'000;
 
     int32_t x_{};
     int32_t y_{};
@@ -36,7 +35,7 @@ private:
     uint16_t buttons_{};
     uint64_t last_packet_us_{};
     bool received_{};
+    bool link_active_{};
     bool resume_release_pending_{true};
-    bool timeout_latched_{};
     uint32_t timeout_count_{};
 };
