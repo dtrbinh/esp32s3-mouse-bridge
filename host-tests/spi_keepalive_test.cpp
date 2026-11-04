@@ -13,6 +13,7 @@ int main() {
     state.pan = -1;
     state.buttons = 0x8003;
     state.source = mouse_bridge::InputSource::Ble;
+    state.poll_interval_us = 7'500;
     state.flags = mouse_bridge::ReportFlags::Connected |
                   mouse_bridge::ReportFlags::GeneratedMotion |
                   mouse_bridge::ReportFlags::Overflow;
@@ -24,10 +25,13 @@ int main() {
     assert(keepalive.wheel == 0 && keepalive.pan == 0);
     assert(keepalive.buttons == state.buttons);
     assert(keepalive.source == mouse_bridge::InputSource::Ble);
+    assert(keepalive.poll_interval_us == 7'500);
     assert(mouse_bridge::has_flag(keepalive.flags,
                                   mouse_bridge::ReportFlags::Connected));
     assert(!mouse_bridge::has_flag(keepalive.flags,
                                    mouse_bridge::ReportFlags::GeneratedMotion));
     assert(!mouse_bridge::has_flag(keepalive.flags,
                                    mouse_bridge::ReportFlags::Overflow));
+    assert(mouse_bridge::has_flag(keepalive.flags,
+                                  mouse_bridge::ReportFlags::Keepalive));
 }

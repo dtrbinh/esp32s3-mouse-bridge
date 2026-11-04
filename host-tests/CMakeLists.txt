@@ -12,6 +12,13 @@ target_include_directories(wire_protocol_test PRIVATE ../components/mouse_bridge
 target_sources(wire_protocol_test PRIVATE ../components/mouse_bridge/src/wire_protocol.cpp)
 add_test(NAME wire_protocol COMMAND wire_protocol_test)
 
+add_executable(cadence_test cadence_test.cpp
+    ../components/mouse_bridge/src/cadence.cpp)
+target_compile_features(cadence_test PRIVATE cxx_std_20)
+target_include_directories(cadence_test PRIVATE
+    ../components/mouse_bridge/include)
+add_test(NAME cadence COMMAND cadence_test)
+
 add_executable(profile_engine_test profile_engine_test.cpp)
 target_compile_features(profile_engine_test PRIVATE cxx_std_20)
 target_include_directories(profile_engine_test PRIVATE

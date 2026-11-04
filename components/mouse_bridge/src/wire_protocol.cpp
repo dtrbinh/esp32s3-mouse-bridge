@@ -55,9 +55,10 @@ WirePacket encode_packet(const MouseReport& report, uint32_t sequence) {
     out[25] = static_cast<uint8_t>(report.flags);
     put_le(out, 26, report.physical_x);
     put_le(out, 28, report.physical_y);
+    put_le(out, 30, report.poll_interval_us);
     const uint16_t crc = crc16_ccitt_false(
         std::span<const uint8_t>(out.data(), kWirePacketSize - 2));
-    put_le(out, 30, crc);
+    put_le(out, 32, crc);
     return out;
 }
 
@@ -69,7 +70,7 @@ DecodeResult decode_packet(std::span<const uint8_t> bytes) {
         return result;
     }
     const uint16_t expected = crc16_ccitt_false(bytes.first(kWirePacketSize - 2));
-    if (get_le<uint16_t>(bytes, 30) != expected) {
+    if (get_le<uint16_t>(bytes, 32) != expected) {
         result.status = DecodeStatus::BadCrc;
         return result;
     }
@@ -97,6 +98,7 @@ DecodeResult decode_packet(std::span<const uint8_t> bytes) {
     result.report.flags = static_cast<ReportFlags>(bytes[25]);
     result.report.physical_x = get_le<int16_t>(bytes, 26);
     result.report.physical_y = get_le<int16_t>(bytes, 28);
+    result.report.poll_interval_us = get_le<uint16_t>(bytes, 30);
     result.status = DecodeStatus::Ok;
     return result;
 }

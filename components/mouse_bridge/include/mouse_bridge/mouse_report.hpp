@@ -17,6 +17,7 @@ enum class ReportFlags : uint8_t {
     Bypass = 1U << 2,
     GeneratedMotion = 1U << 3,
     Boundary = 1U << 4,
+    Keepalive = 1U << 5,
 };
 
 constexpr ReportFlags operator|(ReportFlags lhs, ReportFlags rhs) {
@@ -44,6 +45,7 @@ struct MouseReport {
     uint16_t buttons{};
     InputSource source{InputSource::None};
     ReportFlags flags{ReportFlags::None};
+    uint16_t poll_interval_us{};
 
     constexpr bool operator==(const MouseReport&) const = default;
 };

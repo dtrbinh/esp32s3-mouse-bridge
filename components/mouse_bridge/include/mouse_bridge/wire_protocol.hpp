@@ -9,9 +9,9 @@
 
 namespace mouse_bridge {
 
-inline constexpr size_t kWirePacketSize = 32;
+inline constexpr size_t kWirePacketSize = 34;
 inline constexpr uint16_t kWireMagic = 0x4D42;
-inline constexpr uint8_t kWireVersion = 1;
+inline constexpr uint8_t kWireVersion = 2;
 
 using WirePacket = std::array<uint8_t, kWirePacketSize>;
 
