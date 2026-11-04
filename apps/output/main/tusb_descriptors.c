@@ -1,10 +1,16 @@
 #include "tusb_descriptors.h"
 
 #include "class/hid/hid_device.h"
+#include "sdkconfig.h"
 #include "tusb.h"
 
 #define MOUSE_REPORT_LEN 8
+#if CONFIG_TINYUSB_CDC_ENABLED
+#define CONFIG_TOTAL_LEN \
+    (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_DESC_LEN)
+#else
 #define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN)
+#endif
 
 const uint8_t mouse_hid_report_descriptor[] = {
     0x05, 0x01,        // Usage Page (Generic Desktop)
@@ -46,11 +52,20 @@ const uint8_t mouse_hid_report_descriptor[] = {
 };
 
 const uint8_t mouse_hid_configuration_descriptor[] = {
+#if CONFIG_TINYUSB_CDC_ENABLED
+    TUD_CONFIG_DESCRIPTOR(1, 3, 0, CONFIG_TOTAL_LEN,
+                          TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+    TUD_CDC_DESCRIPTOR(0, 5, 0x81, 8, 0x02, 0x82, 64),
+    TUD_HID_DESCRIPTOR(2, 4, HID_ITF_PROTOCOL_MOUSE,
+                       sizeof(mouse_hid_report_descriptor), 0x83,
+                       MOUSE_REPORT_LEN, 1),
+#else
     TUD_CONFIG_DESCRIPTOR(1, 1, 0, CONFIG_TOTAL_LEN,
                           TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
     TUD_HID_DESCRIPTOR(0, 4, HID_ITF_PROTOCOL_MOUSE,
                        sizeof(mouse_hid_report_descriptor), 0x81,
                        MOUSE_REPORT_LEN, 1),
+#endif
 };
 
 const char* mouse_hid_string_descriptor[] = {
@@ -59,6 +74,7 @@ const char* mouse_hid_string_descriptor[] = {
     "Adaptive HID Mouse Bridge",
     "S3HID0001",
     "Mouse",
+    "Diagnostics",
 };
 
 const uint8_t mouse_hid_string_descriptor_count =

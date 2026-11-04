@@ -8,6 +8,8 @@
 #include "esp_timer.h"
 #include "esp_task_wdt.h"
 #include "tinyusb.h"
+#include "tinyusb_cdc_acm.h"
+#include "tinyusb_console.h"
 #include "tinyusb_default_config.h"
 
 #include <algorithm>
@@ -57,6 +59,23 @@ esp_err_t UsbMouseDevice::start(bool enable_bypass_button) {
     config.descriptor.string_count = mouse_hid_string_descriptor_count;
     result = tinyusb_driver_install(&config);
     if (result != ESP_OK) return result;
+
+#if CONFIG_TINYUSB_CDC_ENABLED
+    const tinyusb_config_cdcacm_t cdc_config{
+        .cdc_port = TINYUSB_CDC_ACM_0,
+        .callback_rx = nullptr,
+        .callback_rx_wanted_char = nullptr,
+        .callback_line_state_changed = nullptr,
+        .callback_line_coding_changed = nullptr,
+    };
+    result = tinyusb_cdcacm_init(&cdc_config);
+    if (result != ESP_OK) return result;
+    result = tinyusb_console_init(TINYUSB_CDC_ACM_0);
+    if (result != ESP_OK) return result;
+    setvbuf(stdout, nullptr, _IONBF, 0);
+    setvbuf(stderr, nullptr, _IONBF, 0);
+    ESP_LOGI(kTag, "USB composite HID+CDC diagnostics ready");
+#endif
 
     task_handle_ = xTaskCreateStaticPinnedToCore(
         task_entry, "usb_mouse", task_stack_.size(), this, 8,

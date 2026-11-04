@@ -19,6 +19,12 @@ namespace {
 constexpr char kTag[] = "setup_portal";
 constexpr std::array<uint8_t, 4> kPortalAddress{192, 168, 4, 1};
 
+esp_err_t portal_stage_error(const char* stage, esp_err_t result) {
+    ESP_LOGE(kTag, "stage=%s error=%s (0x%x)", stage,
+             esp_err_to_name(result), static_cast<unsigned>(result));
+    return result;
+}
+
 SetupPortal* owner(httpd_req_t* request) {
     return static_cast<SetupPortal*>(request->user_ctx);
 }
@@ -45,20 +51,20 @@ esp_err_t SetupPortal::start() {
     if (result != ESP_OK && result != ESP_ERR_INVALID_STATE) {
         lifecycle_.fail();
         (void)unwind();
-        return result;
+        return portal_stage_error("netif_init", result);
     }
     result = esp_event_loop_create_default();
     if (result != ESP_OK && result != ESP_ERR_INVALID_STATE) {
         lifecycle_.fail();
         (void)unwind();
-        return result;
+        return portal_stage_error("event_loop", result);
     }
     esp_netif_config_t netif_config = ESP_NETIF_DEFAULT_WIFI_AP();
     ap_netif_ = esp_netif_new(&netif_config);
     if (ap_netif_ == nullptr) {
         lifecycle_.fail();
         (void)unwind();
-        return ESP_ERR_NO_MEM;
+        return portal_stage_error("netif_new", ESP_ERR_NO_MEM);
     }
     (void)lifecycle_.mark_acquired(PortalResource::Netif);
     result = esp_netif_attach_wifi_ap(ap_netif_);
@@ -67,7 +73,7 @@ esp_err_t SetupPortal::start() {
     if (result != ESP_OK) {
         lifecycle_.fail();
         (void)unwind();
-        return result;
+        return portal_stage_error("netif_attach", result);
     }
 
     wifi_init_config_t wifi_init = WIFI_INIT_CONFIG_DEFAULT();
@@ -75,20 +81,20 @@ esp_err_t SetupPortal::start() {
     if (result != ESP_OK) {
         lifecycle_.fail();
         (void)unwind();
-        return result;
+        return portal_stage_error("wifi_init", result);
     }
     (void)lifecycle_.mark_acquired(PortalResource::Wifi);
     result = configure_ap();
     if (result != ESP_OK) {
         lifecycle_.fail();
         (void)unwind();
-        return result;
+        return portal_stage_error("wifi_config", result);
     }
     result = esp_wifi_start();
     if (result != ESP_OK) {
         lifecycle_.fail();
         (void)unwind();
-        return result;
+        return portal_stage_error("wifi_start", result);
     }
     (void)lifecycle_.mark_acquired(PortalResource::WifiStarted);
 
@@ -96,7 +102,7 @@ esp_err_t SetupPortal::start() {
     if (result != ESP_OK) {
         lifecycle_.fail();
         (void)unwind();
-        return result;
+        return portal_stage_error("http_start", result);
     }
     (void)lifecycle_.mark_acquired(PortalResource::Http);
 
@@ -104,7 +110,7 @@ esp_err_t SetupPortal::start() {
     if (result != ESP_OK) {
         lifecycle_.fail();
         (void)unwind();
-        return result;
+        return portal_stage_error("dns_start", result);
     }
     (void)lifecycle_.mark_acquired(PortalResource::Dns);
     ESP_LOGI(kTag, "Portal active at http://192.168.4.1");
