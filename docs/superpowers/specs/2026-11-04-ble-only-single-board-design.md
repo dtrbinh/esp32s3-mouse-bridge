@@ -47,6 +47,8 @@ and enables mods by default.
 GPIO0/BOOT is sampled every 20 ms and recognizes exactly one action per press:
 
 - Release before 700 ms: advance profile 1 -> 2 -> ... -> 14 -> 1.
+- Release from 700 ms up to but not including 1.5 seconds: no action,
+  preventing an almost-long press from being interpreted as a profile change.
 - Hold through 1.5 seconds, then release before 5 seconds: toggle all mods.
 - Hold through 5 seconds: clear the stored BLE bond immediately and restart
   scanning; releasing afterward performs no additional action.
