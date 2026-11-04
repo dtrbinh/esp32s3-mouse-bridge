@@ -60,6 +60,11 @@ void BleDeviceManager::set_portal_active(bool active) {
     setup_.on_portal_active(active);
 }
 
+void BleDeviceManager::suppress_portal() {
+    Guard guard(lock_);
+    setup_.on_portal_active(false);
+}
+
 void BleDeviceManager::portal_start_failed() {
     Guard guard(lock_);
     setup_.on_portal_start_failed();
@@ -153,10 +158,17 @@ void BleDeviceManager::on_advertisement(
     catalog_.observe(normalized, now_ms);
     const auto selected = history_.selected();
     const auto setup = setup_.snapshot();
-    if (!selected.has_value() || setup.connected.has_value() ||
-        setup.attempt.has_value()) {
+    if (setup.connected.has_value() || setup.attempt.has_value()) {
         return;
     }
+    if (!auto_connect_name_fragment_.empty()) {
+        if (normalized.name.find(auto_connect_name_fragment_) !=
+            std::string_view::npos) {
+            setup_.request_connect(normalized.address);
+        }
+        return;
+    }
+    if (!selected.has_value()) return;
     const BlePeerAddress comparison = normalize_ble_address(
         resolved_identity.value_or(normalized.address));
     if (comparison == normalize_ble_address(*selected)) {

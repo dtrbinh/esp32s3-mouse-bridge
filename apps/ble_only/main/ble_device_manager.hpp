@@ -39,8 +39,11 @@ struct BleManagerStatus {
 
 class BleDeviceManager final : public BleSelectionDelegate {
 public:
-    explicit BleDeviceManager(BleHistoryPersistence& persistence)
-        : persistence_(persistence) {}
+    explicit BleDeviceManager(
+        BleHistoryPersistence& persistence,
+        std::string_view auto_connect_name_fragment = {})
+        : persistence_(persistence),
+          auto_connect_name_fragment_(auto_connect_name_fragment) {}
 
     void start(uint32_t now_ms);
     bool request_connect(BlePeerAddress peer);
@@ -49,6 +52,7 @@ public:
     void request_portal();
     void request_close();
     void set_portal_active(bool active);
+    void suppress_portal();
     void portal_start_failed();
     std::optional<BleManagerDecision> service(uint32_t now_ms);
     [[nodiscard]] PortalView snapshot(uint32_t now_ms) const;
@@ -113,4 +117,5 @@ private:
     size_t extra_read_{};
     size_t extra_write_{};
     size_t extra_count_{};
+    std::string_view auto_connect_name_fragment_{};
 };

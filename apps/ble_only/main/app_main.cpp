@@ -11,7 +11,6 @@
 #include "esp_log.h"
 #include "esp_task_wdt.h"
 #include "esp_timer.h"
-#include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
@@ -19,6 +18,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 
 #if CONFIG_FREERTOS_UNICORE
 #error "The BLE-only mouse pipeline requires both ESP32-S3 cores"
@@ -27,6 +27,8 @@
 namespace {
 constexpr BaseType_t kRadioCore = 0;
 constexpr BaseType_t kRealtimeCore = 1;
+constexpr bool kWebConfigEnabled = false;
+constexpr std::string_view kAutoConnectNameFragment = "X7";
 
 struct PipelineContext {
     SourceArbiter* arbiter;
@@ -46,6 +48,7 @@ struct SetupContext {
     BleDeviceManager* manager;
     SetupPortal* portal;
     BleHogpClient* ble;
+    bool web_config_enabled;
 };
 
 StaticTask_t pipeline_control;
@@ -142,17 +145,6 @@ void diagnostics_task(void* arg) {
         const uint32_t now_ms =
             static_cast<uint32_t>(esp_timer_get_time() / 1'000);
         const auto portal = context.manager->status(now_ms);
-        wifi_mode_t wifi_mode = WIFI_MODE_NULL;
-        wifi_config_t wifi_config{};
-        uint8_t wifi_channel = 0;
-        wifi_second_chan_t wifi_second = WIFI_SECOND_CHAN_NONE;
-        uint8_t wifi_mac[6]{};
-        const esp_err_t mode_result = esp_wifi_get_mode(&wifi_mode);
-        const esp_err_t config_result =
-            esp_wifi_get_config(WIFI_IF_AP, &wifi_config);
-        const esp_err_t channel_result =
-            esp_wifi_get_channel(&wifi_channel, &wifi_second);
-        const esp_err_t mac_result = esp_wifi_get_mac(WIFI_IF_AP, wifi_mac);
         ESP_LOGI(
             "MB_DIAG",
             "board=ble_only source=%s ble_connections=%lu "
@@ -171,21 +163,6 @@ void diagnostics_task(void* arg) {
             static_cast<unsigned>(portal.saved_count),
             static_cast<unsigned>(portal.nearby_count),
             setup_phase_name(portal.setup.phase));
-        ESP_LOGI(
-            "WIFI_DIAG",
-            "mode=%d mode_err=%s ssid=%s hidden=%u beacon=%u dtim=%u "
-            "config_err=%s channel=%u channel_err=%s "
-            "mac=%02X:%02X:%02X:%02X:%02X:%02X "
-            "mac_err=%s",
-            static_cast<int>(wifi_mode), esp_err_to_name(mode_result),
-            reinterpret_cast<const char*>(wifi_config.ap.ssid),
-            static_cast<unsigned>(wifi_config.ap.ssid_hidden),
-            static_cast<unsigned>(wifi_config.ap.beacon_interval),
-            static_cast<unsigned>(wifi_config.ap.dtim_period),
-            esp_err_to_name(config_result), static_cast<unsigned>(wifi_channel),
-            esp_err_to_name(channel_result), wifi_mac[0], wifi_mac[1],
-            wifi_mac[2], wifi_mac[3], wifi_mac[4], wifi_mac[5],
-            esp_err_to_name(mac_result));
     }
 }
 
@@ -201,6 +178,12 @@ void setup_task(void* arg) {
             bool complete = true;
             switch (pending->kind) {
             case BleManagerDecisionKind::StartPortal: {
+                if (!context.web_config_enabled) {
+                    context.manager->suppress_portal();
+                    ESP_LOGI("ble_only_setup",
+                             "web_config=off; continuing BLE auto-scan");
+                    break;
+                }
                 const esp_err_t result = context.portal->start();
                 if (result == ESP_OK) {
                     complete = context.ble->enqueue_control(
@@ -214,6 +197,10 @@ void setup_task(void* arg) {
                 break;
             }
             case BleManagerDecisionKind::StopPortal: {
+                if (!context.web_config_enabled) {
+                    context.manager->set_portal_active(false);
+                    break;
+                }
                 const esp_err_t result = context.portal->stop();
                 complete = result == ESP_OK;
                 if (complete) {
@@ -255,7 +242,8 @@ void setup_task(void* arg) {
 
 extern "C" void app_main() {
     static BleDeviceStore device_store;
-    static BleDeviceManager device_manager(device_store);
+    static BleDeviceManager device_manager(device_store,
+                                            kAutoConnectNameFragment);
     static SetupPortal setup_portal(device_manager);
     static SourceArbiter arbiter;
     static BleOnlyMode mode(CONFIG_BLE_ONLY_DEFAULT_PROFILE - 1, true);
@@ -266,7 +254,8 @@ extern "C" void app_main() {
     static PipelineContext pipeline{&arbiter, &mode, &usb_mouse};
     static DiagnosticsContext diagnostics{&arbiter, &ble_mouse, &mode,
                                           &usb_mouse, &device_manager};
-    static SetupContext setup{&device_manager, &setup_portal, &ble_mouse};
+    static SetupContext setup{&device_manager, &setup_portal, &ble_mouse,
+                              kWebConfigEnabled};
 
     ESP_ERROR_CHECK(usb_mouse.start(false));
     const esp_err_t led_result = status_led.start();
@@ -280,30 +269,13 @@ extern "C" void app_main() {
     ESP_ERROR_CHECK(pipeline_handle != nullptr ? ESP_OK : ESP_ERR_NO_MEM);
     arbiter.set_wake_callback(wake_pipeline, &pipeline_handle);
 
-    // Follow Espressif's coexistence startup order: Wi-Fi before NimBLE.
-    // This lets the setup AP establish its RF time slice before BLE scanning.
     ESP_ERROR_CHECK(initialize_nvs());
     const uint32_t bootstrap_ms =
         static_cast<uint32_t>(esp_timer_get_time() / 1'000);
     device_manager.start(bootstrap_ms);
-    bool portal_bootstrapped = false;
-    if (const auto initial = device_manager.service(bootstrap_ms)) {
-        ESP_ERROR_CHECK(initial->kind == BleManagerDecisionKind::StartPortal
-                            ? ESP_OK
-                            : ESP_ERR_INVALID_STATE);
-        ESP_ERROR_CHECK(setup_portal.start());
-        device_manager.set_portal_active(true);
-        portal_bootstrapped = true;
-    }
 
     ble_mouse.set_selection_delegate(&device_manager);
     ESP_ERROR_CHECK(ble_mouse.start());
-    if (portal_bootstrapped) {
-        ESP_ERROR_CHECK(ble_mouse.enqueue_control(
-                            {BleClientCommandKind::StartScan, {}})
-                            ? ESP_OK
-                            : ESP_ERR_NO_MEM);
-    }
     ESP_ERROR_CHECK(boot_control.start(pipeline_handle));
     ESP_ERROR_CHECK(xTaskCreateStaticPinnedToCore(
                         setup_task, "ble_only_setup", setup_stack.size(),
@@ -318,6 +290,9 @@ extern "C" void app_main() {
                         kRadioCore) != nullptr
                         ? ESP_OK
                         : ESP_ERR_NO_MEM);
-    ESP_LOGI("ble_only", "BLE mouse to USB HID started; profile=%u mods=on",
+    ESP_LOGI("ble_only",
+             "BLE mouse to USB HID started; target=%.*s profile=%u mods=on",
+             static_cast<int>(kAutoConnectNameFragment.size()),
+             kAutoConnectNameFragment.data(),
              static_cast<unsigned>(mode.selected_profile()));
 }

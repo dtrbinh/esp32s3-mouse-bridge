@@ -49,6 +49,45 @@ int main() {
     assert(idempotent_persistence.load_count == 1);
     assert(idempotent.snapshot(1).setup.portal_active);
 
+    FakePersistence auto_target_persistence;
+    BleDeviceManager auto_target(auto_target_persistence, "X7");
+    auto_target.start(0);
+    take(auto_target, BleManagerDecisionKind::StartPortal, 0);
+    auto_target.on_advertisement(advertisement(address(0x40), "Other mouse"),
+                                 std::nullopt, 1);
+    assert(!auto_target.service(1).has_value());
+    const auto auto_target_peer = address(0x41, 1);
+    auto_target.on_advertisement(
+        advertisement(auto_target_peer, "Freewolf X7 BLE"), std::nullopt, 2);
+    const auto auto_target_decision =
+        take(auto_target, BleManagerDecisionKind::Connect, 2);
+    assert(auto_target_decision.peer == auto_target_peer);
+
+    FakePersistence stale_target_persistence;
+    const auto stale_target_peer = address(0x42, 1);
+    stale_target_persistence.loaded.record_success(stale_target_peer,
+                                                   "Old mouse");
+    BleDeviceManager stale_target(stale_target_persistence, "X7");
+    stale_target.start(0);
+    stale_target.on_advertisement(
+        advertisement(stale_target_peer, "Old mouse"), stale_target_peer, 1);
+    assert(!stale_target.service(1).has_value());
+    stale_target.on_advertisement(
+        advertisement(auto_target_peer, "Freewolf X7 BLE"), std::nullopt, 2);
+    const auto stale_target_decision =
+        take(stale_target, BleManagerDecisionKind::Connect, 2);
+    assert(stale_target_decision.peer == auto_target_peer);
+
+    FakePersistence disabled_portal_persistence;
+    disabled_portal_persistence.loaded.record_success(auto_target_peer,
+                                                      "Freewolf X7 BLE");
+    BleDeviceManager disabled_portal(disabled_portal_persistence, "X7");
+    disabled_portal.start(0);
+    take(disabled_portal, BleManagerDecisionKind::StartPortal, 10'000);
+    disabled_portal.suppress_portal();
+    assert(!disabled_portal.service(10'020).has_value());
+    assert(!disabled_portal.service(20'000).has_value());
+
     FakePersistence persistence;
     BleDeviceManager manager(persistence);
     manager.start(0);
