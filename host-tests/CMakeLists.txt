@@ -134,3 +134,20 @@ target_include_directories(ble_setup_state_test PRIVATE
     ../apps/input/main)
 add_test(NAME ble_setup_state COMMAND ble_setup_state_test)
 
+add_executable(portal_codec_test portal_codec_test.cpp
+    ../apps/ble_only/main/portal_codec.cpp
+    ../apps/ble_only/main/ble_device_catalog.cpp
+    ../apps/ble_only/main/ble_device_history.cpp)
+target_compile_features(portal_codec_test PRIVATE cxx_std_20)
+target_include_directories(portal_codec_test PRIVATE
+    ../apps/ble_only/main
+    ../apps/input/main)
+add_test(NAME portal_codec COMMAND portal_codec_test)
+
+add_executable(captive_dns_codec_test captive_dns_codec_test.cpp
+    ../apps/ble_only/main/captive_dns_codec.cpp)
+target_compile_features(captive_dns_codec_test PRIVATE cxx_std_20)
+target_include_directories(captive_dns_codec_test PRIVATE
+    ../apps/ble_only/main)
+add_test(NAME captive_dns_codec COMMAND captive_dns_codec_test)
+
