@@ -33,6 +33,7 @@ public:
     [[nodiscard]] std::optional<BlePeerAddress> selected() const {
         return selected_;
     }
+    [[nodiscard]] std::string_view selected_name() const;
     [[nodiscard]] size_t count() const { return count_; }
     [[nodiscard]] BleSavedSnapshot snapshot(
         std::optional<BlePeerAddress> connected_identity) const;

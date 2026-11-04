@@ -129,6 +129,23 @@ int main() {
     decision = take(reconnect, BleManagerDecisionKind::Connect, 120);
     assert(decision.peer == freewolf_rpa);
 
+    FakePersistence rotating_address_persistence;
+    rotating_address_persistence.loaded.record_success(freewolf_id,
+                                                        "Freewolf X7");
+    BleDeviceManager rotating_address(rotating_address_persistence);
+    rotating_address.start(100);
+    const auto next_freewolf_rpa = address(0x72, 1);
+    rotating_address.on_advertisement(
+        advertisement(next_freewolf_rpa, "Freewolf X7"), std::nullopt, 121);
+    decision = take(rotating_address, BleManagerDecisionKind::Connect, 121);
+    assert(decision.peer == next_freewolf_rpa);
+    rotating_address.on_validated_connection(
+        next_freewolf_rpa, next_freewolf_rpa, "Freewolf X7", 122);
+    rotating_address.service(122);
+    const auto rotated_view = rotating_address.snapshot(122);
+    assert(rotated_view.saved.count == 1);
+    assert(rotated_view.saved.devices[0].identity == next_freewolf_rpa);
+
     reconnect.on_attempt_failed(freewolf_rpa,
                                 BleSelectionFailure::ConnectionFailed, 130);
     take(reconnect, BleManagerDecisionKind::StartPortal, 130);

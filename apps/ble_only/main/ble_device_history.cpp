@@ -130,6 +130,16 @@ void BleDeviceHistory::select(BlePeerAddress identity) {
     selected_ = identity;
 }
 
+std::string_view BleDeviceHistory::selected_name() const {
+    if (!selected_.has_value()) return {};
+    for (size_t i = 0; i < count_; ++i) {
+        if (devices_[i].identity == *selected_) {
+            return {devices_[i].name.data(), name_length(devices_[i].name)};
+        }
+    }
+    return {};
+}
+
 BleSavedSnapshot BleDeviceHistory::snapshot(
     std::optional<BlePeerAddress> connected_identity) const {
     BleSavedSnapshot result{};

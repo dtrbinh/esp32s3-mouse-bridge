@@ -171,7 +171,12 @@ void BleDeviceManager::on_advertisement(
     if (!selected.has_value()) return;
     const BlePeerAddress comparison = normalize_ble_address(
         resolved_identity.value_or(normalized.address));
-    if (comparison == normalize_ble_address(*selected)) {
+    const std::string_view selected_name = history_.selected_name();
+    const bool address_matches =
+        comparison == normalize_ble_address(*selected);
+    const bool name_matches = !selected_name.empty() &&
+                              normalized.name == selected_name;
+    if (address_matches || name_matches) {
         setup_.request_connect(normalized.address);
     }
 }
@@ -183,6 +188,14 @@ void BleDeviceManager::on_validated_connection(
     observed = normalize_ble_address(observed);
     stable_identity = normalize_ble_address(stable_identity);
     if (setup_.snapshot().attempt != observed) return;
+    const auto previous_identity = history_.selected();
+    const bool rotated_identity =
+        previous_identity.has_value() &&
+        normalize_ble_address(*previous_identity) != stable_identity &&
+        !name.empty() && history_.selected_name() == name;
+    if (rotated_identity) {
+        (void)history_.forget(*previous_identity);
+    }
     history_.record_success(stable_identity, name);
     history_dirty_ = true;
     persistence_failed_ = false;

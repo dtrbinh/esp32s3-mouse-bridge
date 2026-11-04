@@ -25,6 +25,7 @@ int main() {
 
     history.record_success(address(1), "Mouse A");
     history.record_success(address(2), "Mouse B");
+    assert(history.selected_name() == "Mouse B");
     assert(history.count() == 2);
     assert(history.selected() == address(2));
     auto saved = history.snapshot(address(1));
@@ -41,6 +42,7 @@ int main() {
 
     history.disconnect_without_forget();
     assert(!history.selected().has_value());
+    assert(history.selected_name().empty());
     assert(history.count() == 2);
     history.select(address(2));
     assert(history.selected() == address(2));
