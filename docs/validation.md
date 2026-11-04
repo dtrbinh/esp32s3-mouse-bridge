@@ -7,8 +7,8 @@ Kết quả phần mềm dưới đây đã được chạy trên host. Các m�
 | Kiểm tra | Kết quả hiện tại | Bằng chứng |
 |---|---|---|
 | Host unit tests | PASS | 10/10 CTest |
-| Firmware input ESP-IDF | PASS | build ESP-IDF 6.0.3 |
-| Firmware output ESP-IDF | PASS | build ESP-IDF 6.0.3; HID endpoint 8 byte, interval 1 ms |
+| Firmware input ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x9a2a0`, còn 40% partition |
+| Firmware output ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x3afd0`, còn 77% partition; HID endpoint 8 byte, interval 1 ms |
 | Whitespace/static diff | PASS | `git diff --check` |
 
 ## Kiểm tra phần cứng bắt buộc

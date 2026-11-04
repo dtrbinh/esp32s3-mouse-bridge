@@ -9,8 +9,10 @@ Pipeline hoàn chỉnh:
 
 ```text
 USB Host / BLE HOGP → source arbiter → profile engine → SPI 10 MHz
-→ failsafe → TinyUSB HID mouse 1 kHz
+→ failsafe → TinyUSB HID mouse thích nghi 125–1000 Hz
 ```
+
+Firmware dùng cả hai nhân. Trên bo input, BLE và tác vụ bảo trì chạy ở CPU0; USB Host → profile → SPI chạy theo sự kiện ở CPU1. Trên bo output, SPI nhận/giải mã chạy ở CPU0; TinyUSB và HID scheduler chạy ở CPU1. USB descriptor vẫn quảng bá `bInterval=1 ms`, còn report thành công thực tế bám cadence đầu vào.
 
 ## Cảnh báo nguồn và USB
 
@@ -58,3 +60,5 @@ python3 tools/decode_diagnostics.py --latest input.log output.log
 ```
 
 Chi tiết trình tự an toàn, nguồn Host VBUS và các ca kiểm tra phần cứng nằm trong ba tài liệu phía trên.
+
+Giao thức SPI hiện là version 2, packet 34 byte. Luôn flash cả hai firmware cùng commit; không ghép một bo chạy firmware cũ với một bo chạy firmware mới.
