@@ -171,6 +171,7 @@ void BleHogpClient::suspend_forwarding() {
 }
 
 void BleHogpClient::clear_bond() {
+    connected_.store(false, std::memory_order_release);
     forwarding_.store(false);
     (void)ble_store_clear();
     auto* device = device_.load(std::memory_order_acquire);
@@ -199,10 +200,12 @@ void BleHogpClient::on_hidh_event(esp_hidh_event_t event,
         connecting_.store(false);
         if (data.open.status == ESP_OK && compile_maps(data.open.dev)) {
             device_.store(data.open.dev, std::memory_order_release);
+            connected_.store(true, std::memory_order_release);
             connections_.fetch_add(1, std::memory_order_relaxed);
             request_low_latency_interval(data.open.dev);
             arbiter_.on_connected(mouse_bridge::InputSource::Ble, now_us);
         } else {
+            connected_.store(false, std::memory_order_release);
             device_.store(nullptr, std::memory_order_release);
             if (data.open.dev != nullptr) (void)esp_hidh_dev_close(data.open.dev);
             resume_or_scan();
@@ -213,6 +216,7 @@ void BleHogpClient::on_hidh_event(esp_hidh_event_t event,
         break;
     case ESP_HIDH_CLOSE_EVENT:
         if (data.close.dev == device_.load(std::memory_order_acquire)) {
+            connected_.store(false, std::memory_order_release);
             device_.store(nullptr, std::memory_order_release);
             layout_valid_.fill(false);
             arbiter_.on_disconnected(mouse_bridge::InputSource::Ble, now_us);

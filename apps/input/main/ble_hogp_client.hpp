@@ -28,6 +28,9 @@ public:
     [[nodiscard]] uint32_t connections() const {
         return connections_.load(std::memory_order_relaxed);
     }
+    [[nodiscard]] bool connected() const {
+        return connected_.load(std::memory_order_acquire);
+    }
 
 private:
     static constexpr size_t kMaxMaps = 4;
@@ -62,6 +65,7 @@ private:
     std::atomic<bool> forwarding_{true};
     std::atomic<bool> synced_{};
     std::atomic<bool> connecting_{};
+    std::atomic<bool> connected_{};
     std::atomic<uint16_t> negotiated_interval_units_{};
     std::atomic<uint32_t> connections_{};
     ble_gap_event_listener gap_listener_{};
