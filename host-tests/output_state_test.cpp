@@ -74,4 +74,13 @@ int main() {
     // No callback for a rejected packet means no state change.
     frame = state.tick(42'000, false);
     assert(frame.x == 0 && frame.y == 0);
+
+    // Checking failsafes on skipped USB frames must not consume motion.
+    MouseReport skipped{};
+    skipped.x = 12;
+    skipped.y = -9;
+    state.on_packet(skipped, 7, 50'000);
+    state.update_timeouts(51'000);
+    frame = state.tick(51'000, false);
+    assert(frame.x == 12 && frame.y == -9);
 }

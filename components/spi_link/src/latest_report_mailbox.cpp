@@ -36,6 +36,7 @@ bool LatestReportMailbox::push(const mouse_bridge::MouseReport& report) {
     report_.timestamp_us = report.timestamp_us;
     report_.source = report.source;
     report_.flags = report.flags;
+    report_.poll_interval_us = report.poll_interval_us;
     return true;
 }
 

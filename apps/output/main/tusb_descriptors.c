@@ -56,7 +56,7 @@ const uint8_t mouse_hid_configuration_descriptor[] = {
 const char* mouse_hid_string_descriptor[] = {
     (const char[]){0x09, 0x04},
     "ESP32-S3 Mouse Bridge",
-    "1 kHz HID Mouse Bridge",
+    "Adaptive HID Mouse Bridge",
     "S3HID0001",
     "Mouse",
 };

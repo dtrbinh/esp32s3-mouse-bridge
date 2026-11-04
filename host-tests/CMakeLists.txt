@@ -72,3 +72,13 @@ target_include_directories(output_state_test PRIVATE
     ../components/mouse_bridge/include)
 add_test(NAME output_state COMMAND output_state_test)
 
+add_executable(report_scheduler_test report_scheduler_test.cpp
+    ../apps/output/main/report_scheduler.cpp)
+target_compile_features(report_scheduler_test PRIVATE cxx_std_20)
+target_include_directories(report_scheduler_test PRIVATE
+    ../apps/output/main
+    ../components/mouse_bridge/include)
+target_sources(report_scheduler_test PRIVATE
+    ../components/mouse_bridge/src/cadence.cpp)
+add_test(NAME report_scheduler COMMAND report_scheduler_test)
+

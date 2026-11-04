@@ -3,6 +3,7 @@ idf_component_register(
         "app_main.cpp"
         "spi_packet_consumer.cpp"
         "output_state.cpp"
+        "report_scheduler.cpp"
         "usb_mouse_device.cpp"
         "tusb_descriptors.c"
     INCLUDE_DIRS "."

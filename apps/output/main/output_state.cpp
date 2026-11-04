@@ -41,7 +41,7 @@ void OutputState::on_packet(const mouse_bridge::MouseReport& report,
     timeout_latched_ = false;
 }
 
-OutputFrame OutputState::tick(uint64_t now_us, bool bypass) {
+void OutputState::update_timeouts(uint64_t now_us) {
     const uint64_t age = received_ && now_us >= last_packet_us_
                              ? now_us - last_packet_us_
                              : UINT64_MAX;
@@ -55,6 +55,13 @@ OutputFrame OutputState::tick(uint64_t now_us, bool bypass) {
             timeout_latched_ = true;
         }
     }
+}
+
+OutputFrame OutputState::tick(uint64_t now_us, bool bypass) {
+    update_timeouts(now_us);
+    const uint64_t age = received_ && now_us >= last_packet_us_
+                             ? now_us - last_packet_us_
+                             : UINT64_MAX;
 
     OutputFrame frame{};
     frame.link_active = age < kReleaseTimeoutUs;

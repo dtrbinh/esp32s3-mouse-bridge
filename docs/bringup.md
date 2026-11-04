@@ -25,7 +25,7 @@ Thay tên cổng serial bằng cổng thực tế. Thoát monitor bằng `Ctrl+]
 
 ## 3. Kiểm tra bo output độc lập
 
-Kết nối riêng bo output với PC. PC phải nhận `1 kHz HID Mouse Bridge`; con trỏ không tự di chuyển và không có nút bị giữ. Firmware phát release-all khi khởi động và sau USB resume.
+Kết nối riêng bo output với PC. PC phải nhận `Adaptive HID Mouse Bridge`; con trỏ không tự di chuyển và không có nút bị giữ. Firmware phát release-all khi khởi động và sau USB resume.
 
 ## 4. Đấu liên kết hai bo
 
@@ -63,6 +63,8 @@ Hoặc đọc hai file log và lấy mẫu cuối mỗi bo:
 python3 tools/decode_diagnostics.py --latest input.log output.log
 ```
 
-`usb_interval_us` trên input là khoảng cách report quan sát được vì USB Host HID API không công khai `bInterval`; trên output, giá trị 1000 là interval descriptor đã cấu hình. `ble_interval_units` dùng đơn vị BLE 1,25 ms.
+`usb_interval_us` trên input là khoảng cách report đã lọc vì USB Host HID API không công khai `bInterval`; trên output, đây là cadence HID đang áp dụng. Endpoint vẫn quảng bá `bInterval=1 ms`, nhưng trả NAK ở các USB frame không dùng để có thể đổi runtime mà không reconnect. `ble_interval_units` dùng đơn vị BLE 1,25 ms.
+
+Output tự bám input trong khoảng 125–1000 Hz. Report chuyển động/nút mới luôn được gửi ở USB frame 1 ms kế tiếp; chỉ report duy trì trạng thái được giảm nhịp. BLE dùng connection interval đã thương lượng, ví dụ 7,5 ms sẽ xen kẽ khoảng cách 8 ms và 7 ms để không trôi pha dài hạn.
 
 Sau report đầu tiên, bo input gửi keepalive trạng thái không có motion mỗi 2 ms khi chuột không phát report mới. Vì vậy nút đang giữ không bị timeout ở chế độ BLE; output chỉ kích hoạt failsafe khi chính liên kết SPI/bo input im lặng.

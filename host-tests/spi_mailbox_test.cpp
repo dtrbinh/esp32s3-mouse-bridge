@@ -20,6 +20,7 @@ int main() {
     first.buttons = 0x0001;
     first.timestamp_us = 100;
     first.source = InputSource::Usb;
+    first.poll_interval_us = 8'000;
 
     assert(!mailbox.push(first));
 
@@ -34,6 +35,7 @@ int main() {
     newest.timestamp_us = 200;
     newest.source = InputSource::Ble;
     newest.flags = ReportFlags::Boundary;
+    newest.poll_interval_us = 1'000;
     assert(mailbox.push(newest));
 
     MouseReport merged{};
@@ -48,6 +50,7 @@ int main() {
     assert(merged.timestamp_us == newest.timestamp_us);
     assert(merged.source == newest.source);
     assert(merged.flags == newest.flags);
+    assert(merged.poll_interval_us == newest.poll_interval_us);
     assert(!mailbox.take(merged));
 
     MouseReport boundary{};

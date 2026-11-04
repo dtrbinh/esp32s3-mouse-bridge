@@ -40,10 +40,11 @@ void diagnostics_task(void* arg) {
         const auto link = context.spi->counters();
         ESP_LOGI(
             "MB_DIAG",
-            "board=output source=%s usb_interval_us=1000 ble_interval_units=0 "
+            "board=output source=%s usb_interval_us=%u ble_interval_units=0 "
             "spi_packets=%lu sequence_gaps=%lu crc_failures=%lu overruns=%lu "
             "timeouts=%lu max_link_latency_us=0 usb_resumes=%lu",
             source_name(context.usb->active_source()),
+            static_cast<unsigned>(context.usb->output_interval_us()),
             static_cast<unsigned long>(link.packets),
             static_cast<unsigned long>(link.sequence_gaps),
             static_cast<unsigned long>(link.crc_failures),
@@ -66,6 +67,6 @@ extern "C" void app_main() {
                         diagnostics_stack.data(), &diagnostics_control) != nullptr
                         ? ESP_OK
                         : ESP_ERR_NO_MEM);
-    ESP_LOGI("bridge_output", "1 kHz USB HID mouse bridge started");
+    ESP_LOGI("bridge_output", "Adaptive 125-1000 Hz USB HID mouse bridge started");
 }
 

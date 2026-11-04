@@ -62,6 +62,7 @@ void UsbMouseDevice::on_packet(const mouse_bridge::MouseReport& report,
                          std::memory_order_relaxed);
     portENTER_CRITICAL(&state_lock_);
     state_.on_packet(report, sequence, rx_us);
+    scheduler_.on_packet(report, rx_us);
     portEXIT_CRITICAL(&state_lock_);
 }
 
@@ -69,6 +70,7 @@ void UsbMouseDevice::on_suspend() {
     portENTER_CRITICAL(&state_lock_);
     suspended_.store(true, std::memory_order_relaxed);
     state_.on_usb_suspend();
+    scheduler_.reset();
     portEXIT_CRITICAL(&state_lock_);
 }
 
@@ -76,6 +78,7 @@ void UsbMouseDevice::on_resume() {
     portENTER_CRITICAL(&state_lock_);
     suspended_.store(false, std::memory_order_relaxed);
     state_.on_usb_resume(static_cast<uint64_t>(esp_timer_get_time()));
+    scheduler_.reset();
     portEXIT_CRITICAL(&state_lock_);
     resume_count_.fetch_add(1, std::memory_order_relaxed);
 }
@@ -83,6 +86,13 @@ void UsbMouseDevice::on_resume() {
 uint32_t UsbMouseDevice::timeout_count() {
     portENTER_CRITICAL(&state_lock_);
     const uint32_t value = state_.timeout_count();
+    portEXIT_CRITICAL(&state_lock_);
+    return value;
+}
+
+uint16_t UsbMouseDevice::output_interval_us() {
+    portENTER_CRITICAL(&state_lock_);
+    const uint16_t value = scheduler_.interval_us();
     portEXIT_CRITICAL(&state_lock_);
     return value;
 }
@@ -109,11 +119,20 @@ void UsbMouseDevice::task() {
         if (low_samples == kBypassDebounceSamples) bypass_ = true;
         if (high_samples == kBypassDebounceSamples) bypass_ = false;
 
-        if (!suspended_.load(std::memory_order_relaxed) && tud_hid_ready()) {
-            portENTER_CRITICAL(&state_lock_);
-            const OutputFrame frame = state_.tick(
-                static_cast<uint64_t>(esp_timer_get_time()), bypass_);
-            portEXIT_CRITICAL(&state_lock_);
+        const uint64_t now_us = static_cast<uint64_t>(esp_timer_get_time());
+        const bool usb_ready = !suspended_.load(std::memory_order_relaxed) &&
+                               tud_hid_ready();
+        bool report_due = false;
+        OutputFrame frame{};
+        portENTER_CRITICAL(&state_lock_);
+        state_.update_timeouts(now_us);
+        if (usb_ready && scheduler_.due(now_us)) {
+            frame = state_.tick(now_us, bypass_);
+            scheduler_.on_sent(now_us);
+            report_due = true;
+        }
+        portEXIT_CRITICAL(&state_lock_);
+        if (report_due) {
             send(frame);
         }
         ESP_ERROR_CHECK(esp_task_wdt_reset());

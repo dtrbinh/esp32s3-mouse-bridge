@@ -23,7 +23,7 @@ Tắt nguồn cả hai bo trước khi đấu. Dây nên ngắn, đặc biệt S
 | READY | GPIO8 | GPIO8 | input → output |
 | GND | GND | GND | bắt buộc chung mass |
 
-SPI chạy mode 0, 10 MHz, packet cố định 32 byte. READY phát xung cạnh lên sau khi một transaction hoàn tất.
+SPI chạy mode 0, 10 MHz, packet protocol v2 cố định 34 byte. READY phát xung cạnh lên sau khi một transaction hoàn tất. Hai bo phải được flash cùng phiên bản firmware.
 
 ## USB Host trên bo input
 

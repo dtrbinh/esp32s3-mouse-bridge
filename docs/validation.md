@@ -22,6 +22,7 @@ Kết quả phần mềm dưới đây đã được chạy trên host. Các m�
 | BLE reconnect | Tắt/bật chuột; tự nối lại bond cũ | CHƯA CHẠY |
 | Xóa BLE bond | Giữ BOOT input; peer cũ bị xóa và quét lại | CHƯA CHẠY |
 | Chuyển ba mode | Lần lượt dây → 2.4 GHz → BLE; USB luôn ưu tiên, BLE fallback sau 50 ms | CHƯA CHẠY |
+| Adaptive polling | Lần lượt chọn 125/250/500/1000 Hz; diagnostics output lần lượt khoảng 8000/4000/2000/1000 µs, sự kiện mới không chờ hết chu kỳ | CHƯA CHẠY |
 | Rút khi giữ nút | Giữ nút rồi rút nguồn vào; PC release trong tối đa 20 ms | CHƯA CHẠY |
 | Emergency bypass | Profile đang chạy, giữ BOOT output; chỉ còn chuyển động vật lý | CHƯA CHẠY |
 | Mất SPI | Ngắt SCLK/MOSI; motion xóa sau 5 ms, nút release sau 20 ms | CHƯA CHẠY |
