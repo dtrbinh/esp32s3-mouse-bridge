@@ -35,14 +35,18 @@ struct __attribute__((packed)) BootMouseReport {
 static_assert(sizeof(BootMouseReport) == 3);
 }
 
-esp_err_t UsbMouseDevice::start() {
+esp_err_t UsbMouseDevice::start(bool enable_bypass_button) {
     device_instance = this;
-    gpio_config_t button{};
-    button.pin_bit_mask = 1ULL << kBypassPin;
-    button.mode = GPIO_MODE_INPUT;
-    button.pull_up_en = GPIO_PULLUP_ENABLE;
-    esp_err_t result = gpio_config(&button);
-    if (result != ESP_OK) return result;
+    bypass_button_enabled_ = enable_bypass_button;
+    esp_err_t result = ESP_OK;
+    if (bypass_button_enabled_) {
+        gpio_config_t button{};
+        button.pin_bit_mask = 1ULL << kBypassPin;
+        button.mode = GPIO_MODE_INPUT;
+        button.pull_up_en = GPIO_PULLUP_ENABLE;
+        result = gpio_config(&button);
+        if (result != ESP_OK) return result;
+    }
 
     tinyusb_config_t config = TINYUSB_DEFAULT_CONFIG();
     config.task.xCoreID = 1;
@@ -124,7 +128,7 @@ void UsbMouseDevice::task() {
     while (true) {
         (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1));
         const uint64_t now_us = static_cast<uint64_t>(esp_timer_get_time());
-        if (now_us >= next_button_sample_us) {
+        if (bypass_button_enabled_ && now_us >= next_button_sample_us) {
             next_button_sample_us = now_us + 1'000;
             const bool pressed = gpio_get_level(kBypassPin) == 0;
             low_samples = pressed

@@ -14,7 +14,7 @@
 
 class UsbMouseDevice {
 public:
-    esp_err_t start();
+    esp_err_t start(bool enable_bypass_button = true);
     void on_packet(const mouse_bridge::MouseReport& report, uint32_t sequence,
                    uint64_t rx_us);
     void on_suspend();
@@ -48,6 +48,7 @@ private:
     std::array<StackType_t, kTaskStackWords> task_stack_{};
     TaskHandle_t task_handle_{};
     uint64_t pending_stage_rx_us_{};
+    bool bypass_button_enabled_{true};
     bool bypass_{};
     std::atomic<bool> suspended_{};
     std::atomic<uint32_t> resume_count_{};
