@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace profile_engine {
 
@@ -23,13 +24,15 @@ public:
     [[nodiscard]] uint32_t catchup_overflows() const { return catchup_overflows_; }
     mouse_bridge::MouseReport process(const mouse_bridge::MouseReport& physical,
                                       uint64_t now_us);
+    std::optional<mouse_bridge::MouseReport> tick(
+        const mouse_bridge::MouseReport& held_state, uint64_t now_us);
 
 private:
     static constexpr uint16_t kPrimaryMask = 1U << 0;
     static constexpr uint16_t kAimMask = 1U << 1;
-    static constexpr size_t kMaxCatchupSteps = 512;
-
     size_t step_for_elapsed(uint64_t event_us);
+    bool append_due_motion(mouse_bridge::MouseReport& output,
+                           uint64_t now_us);
     void deactivate();
 
     size_t selected_{};

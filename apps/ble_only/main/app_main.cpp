@@ -133,6 +133,9 @@ void pipeline_task(void* arg) {
                                    sequence++, now_us);
             now_us = static_cast<uint64_t>(esp_timer_get_time());
         }
+        if (const auto generated = context.mode->tick(now_us)) {
+            context.usb->on_packet(*generated, sequence++, now_us);
+        }
         ESP_ERROR_CHECK(esp_task_wdt_reset());
     }
 }

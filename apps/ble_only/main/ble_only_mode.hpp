@@ -21,6 +21,7 @@ public:
     std::optional<BootAction> apply_next();
     mouse_bridge::MouseReport process(
         const mouse_bridge::MouseReport& report, uint64_t now_us);
+    std::optional<mouse_bridge::MouseReport> tick(uint64_t now_us);
     void reset();
 
     [[nodiscard]] size_t selected_profile() const {
@@ -38,4 +39,6 @@ private:
     std::atomic<size_t> selected_{};
     std::atomic<bool> mods_enabled_{};
     profile_engine::ProfileEngine profiles_{};
+    mouse_bridge::MouseReport held_state_{};
+    bool have_held_state_{};
 };

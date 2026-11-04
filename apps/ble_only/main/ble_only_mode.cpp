@@ -46,7 +46,18 @@ std::optional<BootAction> BleOnlyMode::apply_next() {
 
 mouse_bridge::MouseReport BleOnlyMode::process(
     const mouse_bridge::MouseReport& report, uint64_t now_us) {
+    held_state_ = report;
+    have_held_state_ = true;
     return profiles_.process(report, now_us);
 }
 
-void BleOnlyMode::reset() { profiles_.reset(); }
+std::optional<mouse_bridge::MouseReport> BleOnlyMode::tick(uint64_t now_us) {
+    if (!have_held_state_) return std::nullopt;
+    return profiles_.tick(held_state_, now_us);
+}
+
+void BleOnlyMode::reset() {
+    profiles_.reset();
+    held_state_ = {};
+    have_held_state_ = false;
+}

@@ -38,12 +38,33 @@ int main() {
                                   ReportFlags::GeneratedMotion));
     assert(mode.profile_active());
 
+    // The periodic path must not replay the last physical movement, wheel,
+    // or pan. It only emits a scheduled profile delta and held buttons.
+    auto tick = mode.tick(25'000);
+    assert(tick.has_value());
+    assert(tick->x == 0);
+    assert(tick->y == 1);
+    assert(tick->physical_x == 0 && tick->physical_y == 0);
+    assert(tick->wheel == 0 && tick->pan == 0);
+    assert(tick->buttons == activating.buttons);
+    assert(mouse_bridge::has_flag(tick->flags,
+                                  ReportFlags::GeneratedMotion));
+    assert(!mode.tick(26'000).has_value());
+
     MouseReport right_only{};
     right_only.buttons = 0x02;
     auto unmodified = mode.process(right_only, 1'500);
     assert(!mouse_bridge::has_flag(unmodified.flags,
                                    ReportFlags::GeneratedMotion));
     assert(!mode.profile_active());
+    assert(!mode.tick(30'000).has_value());
+
+    // Reset/boundary handling cancels autonomous movement immediately.
+    (void)mode.process(activating, 40'000);
+    assert(mode.profile_active());
+    mode.reset();
+    assert(!mode.profile_active());
+    assert(!mode.tick(100'000).has_value());
 
     assert(mode.enqueue(BootAction::ToggleMods));
     assert(mode.apply_next() == BootAction::ToggleMods);

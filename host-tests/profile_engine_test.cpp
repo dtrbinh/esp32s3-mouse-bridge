@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstdint>
 #include <limits>
+#include <optional>
 
 using mouse_bridge::MouseReport;
 using profile_engine::ProfileEngine;
@@ -31,6 +32,17 @@ int main() {
 
     out = engine.process(buttons(0x0003), 25'000);
     assert(out.y == 1);
+
+    // Profile motion continues on its own schedule even when a BLE mouse
+    // sends no more input reports while its activation buttons stay held.
+    auto tick = engine.tick(buttons(0x0003), 48'000);
+    assert(tick.has_value());
+    assert(tick->y == 1);
+    assert(tick->buttons == 0x0003);
+    assert(mouse_bridge::has_flag(tick->flags,
+                                  mouse_bridge::ReportFlags::GeneratedMotion));
+    assert(!engine.tick(buttons(0x0003), 49'000).has_value());
+
     out = engine.process(buttons(0), 26'000);
     assert(out.y == 0);
     assert(!engine.active());
@@ -62,8 +74,11 @@ int main() {
     out = engine.process(buttons(0x0003), 300'000);
     assert(out.x == -5 && out.y == 2);
 
-    // A large elapsed jump catches up deterministically and terminates.
+    // A large scheduler stall emits at most one small step instead of
+    // accumulating every missed step into a cursor jump.
     out = engine.process(buttons(0x0003), 8'500'000);
+    assert(out.x >= -5 && out.x <= 5);
+    assert(out.y >= 0 && out.y <= 3);
     assert(engine.catchup_overflows() <= 1);
 
     engine.set_bypass(true);
