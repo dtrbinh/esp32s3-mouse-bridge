@@ -118,3 +118,11 @@ target_include_directories(ble_device_catalog_test PRIVATE
     ../apps/input/main)
 add_test(NAME ble_device_catalog COMMAND ble_device_catalog_test)
 
+add_executable(ble_device_history_test ble_device_history_test.cpp
+    ../apps/ble_only/main/ble_device_history.cpp)
+target_compile_features(ble_device_history_test PRIVATE cxx_std_20)
+target_include_directories(ble_device_history_test PRIVATE
+    ../apps/ble_only/main
+    ../apps/input/main)
+add_test(NAME ble_device_history COMMAND ble_device_history_test)
+
