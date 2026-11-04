@@ -177,7 +177,8 @@ void BleDeviceManager::on_advertisement(
     const std::string_view selected_name = history_.selected_name();
     const bool address_matches =
         comparison == normalize_ble_address(*selected);
-    const bool name_matches = !selected_name.empty() &&
+    const bool name_matches = !resolved_identity.has_value() &&
+                              !selected_name.empty() &&
                               normalized.name == selected_name;
     const bool retry_due =
         static_cast<int32_t>(now_ms - reconnect_retry_after_ms_) >= 0;

@@ -129,6 +129,27 @@ int main() {
     decision = take(reconnect, BleManagerDecisionKind::Connect, 120);
     assert(decision.peer == freewolf_rpa);
 
+    FakePersistence nameless_identity_persistence;
+    nameless_identity_persistence.loaded.record_success(freewolf_id,
+                                                         "Bonded mouse");
+    BleDeviceManager nameless_identity(nameless_identity_persistence);
+    nameless_identity.start(0);
+    const auto nameless_rpa = address(0x73, 1);
+    nameless_identity.on_advertisement(
+        advertisement(nameless_rpa, {}), freewolf_id, 1);
+    decision = take(nameless_identity, BleManagerDecisionKind::Connect, 1);
+    assert(decision.peer == nameless_rpa);
+
+    FakePersistence foreign_identity_persistence;
+    foreign_identity_persistence.loaded.record_success(freewolf_id,
+                                                        "Common mouse");
+    BleDeviceManager foreign_identity(foreign_identity_persistence);
+    foreign_identity.start(0);
+    foreign_identity.on_advertisement(
+        advertisement(address(0x74, 1), "Common mouse"), address(0x98, 1),
+        1);
+    assert(!foreign_identity.service(1).has_value());
+
     FakePersistence rotating_address_persistence;
     rotating_address_persistence.loaded.record_success(freewolf_id,
                                                         "Freewolf X7");
