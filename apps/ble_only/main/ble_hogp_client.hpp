@@ -97,6 +97,7 @@ private:
     void on_sync();
     int on_gap_event(ble_gap_event& event);
     void begin_connect(BlePeerAddress peer);
+    void begin_service_discovery(const char* security_result);
     void begin_characteristic_discovery();
     void finish_report_map();
     void start_next_subscription();
@@ -136,6 +137,7 @@ private:
     uint16_t service_end_{};
     uint16_t report_map_handle_{};
     uint16_t connection_handle_{BLE_HS_CONN_HANDLE_NONE};
+    bool discovery_started_{};
     BlePeerAddress candidate_{};
     std::array<char, 33> candidate_name_{};
     std::array<NamedPeer, kMaxNamedPeers> named_peers_{};

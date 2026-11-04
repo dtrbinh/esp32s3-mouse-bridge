@@ -6,8 +6,11 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "host/ble_att.h"
+#include "host/ble_esp_gap.h"
 #include "host/ble_hs.h"
 #include "host/ble_sm.h"
+#include "host/ble_store.h"
+#include "host/util/util.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "nvs_flash.h"
@@ -15,6 +18,8 @@
 
 #include <algorithm>
 #include <cstring>
+
+extern "C" void ble_store_config_init(void);
 
 namespace {
 constexpr char kTag[] = "ble_mouse";
@@ -51,12 +56,16 @@ esp_err_t BleHogpClient::start() {
     result = nimble_port_init();
     if (result != ESP_OK) return result;
     ble_hs_cfg.sync_cb = sync_callback;
+    ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
     ble_hs_cfg.sm_io_cap = BLE_SM_IO_CAP_NO_IO;
-    ble_hs_cfg.sm_bonding = 0;
-    ble_hs_cfg.sm_sc = 0;
+    ble_hs_cfg.sm_bonding = 1;
+    ble_hs_cfg.sm_sc = 1;
     ble_hs_cfg.sm_mitm = 0;
-    ble_hs_cfg.sm_our_key_dist = 0;
-    ble_hs_cfg.sm_their_key_dist = 0;
+    ble_hs_cfg.sm_our_key_dist =
+        BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+    ble_hs_cfg.sm_their_key_dist =
+        BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+    ble_store_config_init();
 
     command_queue_ = xQueueCreateStatic(
         kCommandCapacity, sizeof(BleClientCommand),
@@ -67,7 +76,9 @@ esp_err_t BleHogpClient::start() {
         worker_stack_.data(), &worker_control_, 0);
     if (worker_handle_ == nullptr) return ESP_ERR_NO_MEM;
     nimble_port_freertos_init(host_task_entry);
-    ESP_LOGI(kTag, "transport=direct_gatt bonding=off encryption=off");
+    ESP_LOGI(kTag,
+             "transport=direct_gatt bonding=on nvs_keys=on "
+             "security_fallback=direct_gatt");
     return ESP_OK;
 }
 
@@ -183,8 +194,25 @@ int BleHogpClient::on_gap_event(ble_gap_event& event) {
         advertisement.advertises_hid = advertises_hid;
 
         if (selection_delegate_ != nullptr) {
+            std::optional<BlePeerAddress> resolved_identity;
+            ble_addr_t observed{};
+            observed.type = advertisement.address.type;
+            std::copy(advertisement.address.bytes.begin(),
+                      advertisement.address.bytes.end(), observed.val);
+            if (advertisement.address.type == BLE_ADDR_RANDOM &&
+                BLE_ADDR_IS_RPA(&observed)) {
+                auto rpa = advertisement.address.bytes;
+                BlePeerAddress identity{};
+                uint8_t identity_type = 0;
+                if (ble_gap_rpa_resolve(rpa.data(), identity.bytes.data(),
+                                        &identity_type)) {
+                    identity.type =
+                        normalize_ble_address_type(identity_type);
+                    resolved_identity = normalize_ble_address(identity);
+                }
+            }
             selection_delegate_->on_advertisement(
-                advertisement, std::nullopt,
+                advertisement, resolved_identity,
                 static_cast<uint32_t>(esp_timer_get_time() / 1'000));
         } else if (advertises_hid && !connecting_.load() &&
                    connection_handle_ == BLE_HS_CONN_HANDLE_NONE) {
@@ -212,15 +240,47 @@ int BleHogpClient::on_gap_event(ble_gap_event& event) {
         ESP_LOGI(kTag, "link_connected handle=%u",
                  static_cast<unsigned>(connection_handle_));
         {
-            const int rc = ble_gattc_disc_svc_by_uuid(
-                connection_handle_, &kHidServiceUuid.u, service_callback,
-                this);
-            if (rc != 0) {
-                fail_attempt(BleSelectionFailure::ConnectionFailed,
-                             "service_start", rc);
+            ble_gap_conn_desc connection{};
+            if (ble_gap_conn_find(connection_handle_, &connection) == 0 &&
+                connection.sec_state.encrypted) {
+                begin_service_discovery("already_encrypted");
+                return 0;
+            }
+            const int rc = ble_gap_security_initiate(connection_handle_);
+            if (rc == 0 || rc == BLE_HS_EALREADY) {
+                ESP_LOGI(kTag, "security_start rc=%d", rc);
+            } else {
+                ESP_LOGW(kTag,
+                         "security_start rc=%d; trying validated "
+                         "direct GATT fallback",
+                         rc);
+                begin_service_discovery("security_start_failed");
             }
         }
         return 0;
+    case BLE_GAP_EVENT_ENC_CHANGE:
+        if (event.enc_change.conn_handle != connection_handle_) return 0;
+        if (event.enc_change.status == 0) {
+            ESP_LOGI(kTag, "security_result encrypted=yes bonded=preferred");
+            begin_service_discovery("encrypted");
+        } else {
+            ESP_LOGW(kTag,
+                     "security_result status=%d; trying validated "
+                     "direct GATT fallback",
+                     event.enc_change.status);
+            begin_service_discovery("encryption_failed");
+        }
+        return 0;
+    case BLE_GAP_EVENT_REPEAT_PAIRING: {
+        ble_gap_conn_desc connection{};
+        if (ble_gap_conn_find(event.repeat_pairing.conn_handle,
+                              &connection) != 0) {
+            return 0;
+        }
+        const int rc = ble_store_util_delete_peer(&connection.peer_id_addr);
+        ESP_LOGW(kTag, "repeat_pairing delete_stale_bond rc=%d", rc);
+        return BLE_GAP_REPEAT_PAIRING_RETRY;
+    }
     case BLE_GAP_EVENT_DISCONNECT:
         handle_disconnect(event.disconnect.reason);
         return 0;
@@ -239,6 +299,21 @@ int BleHogpClient::on_gap_event(ble_gap_event& event) {
         return 0;
     default:
         return 0;
+    }
+}
+
+void BleHogpClient::begin_service_discovery(const char* security_result) {
+    if (discovery_started_ ||
+        connection_handle_ == BLE_HS_CONN_HANDLE_NONE) {
+        return;
+    }
+    discovery_started_ = true;
+    ESP_LOGI(kTag, "gatt_discovery security=%s", security_result);
+    const int rc = ble_gattc_disc_svc_by_uuid(
+        connection_handle_, &kHidServiceUuid.u, service_callback, this);
+    if (rc != 0) {
+        fail_attempt(BleSelectionFailure::ConnectionFailed,
+                     "service_start", rc);
     }
 }
 
@@ -680,6 +755,8 @@ void BleHogpClient::suspend_forwarding() {
 
 void BleHogpClient::clear_bond() {
     forwarding_.store(false, std::memory_order_release);
+    const int rc = ble_store_clear();
+    ESP_LOGI(kTag, "all_bonds_deleted rc=%d", rc);
     (void)ble_gap_disc_cancel();
     if (connection_handle_ != BLE_HS_CONN_HANDLE_NONE) {
         (void)ble_gap_terminate(connection_handle_,
@@ -689,9 +766,17 @@ void BleHogpClient::clear_bond() {
     }
 }
 
-void BleHogpClient::forget_peer(BlePeerAddress) {
-    // Direct-GATT mode intentionally does not create NimBLE bonds. Device
-    // history is owned and removed by BleDeviceManager/NVS.
+void BleHogpClient::forget_peer(BlePeerAddress peer) {
+    peer = normalize_ble_address(peer);
+    ble_addr_t identity{};
+    identity.type = peer.type;
+    std::copy(peer.bytes.begin(), peer.bytes.end(), identity.val);
+    const int rc = ble_store_util_delete_peer(&identity);
+    if (rc == 0) {
+        ESP_LOGI(kTag, "bond_deleted");
+    } else if (rc != BLE_HS_ENOENT) {
+        ESP_LOGW(kTag, "bond_delete rc=%d", rc);
+    }
 }
 
 std::optional<BlePeerAddress> BleHogpClient::connected_identity() const {
@@ -748,6 +833,7 @@ std::string_view BleHogpClient::name_for(BlePeerAddress peer) const {
 }
 
 void BleHogpClient::reset_discovery() {
+    discovery_started_ = false;
     service_start_ = 0;
     service_end_ = 0;
     report_map_handle_ = 0;
