@@ -106,6 +106,7 @@ private:
     BleDeviceCatalog catalog_{};
     BleDeviceHistory history_{};
     BleSetupState setup_{};
+    bool started_{};
     bool history_dirty_{};
     bool persistence_failed_{};
     std::array<BleManagerDecision, 4> extra_{};

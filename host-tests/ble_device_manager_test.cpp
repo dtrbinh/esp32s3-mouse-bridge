@@ -13,7 +13,10 @@ BleAdvertisement advertisement(BlePeerAddress peer, std::string_view name) {
 
 class FakePersistence final : public BleHistoryPersistence {
 public:
-    BleDeviceHistory load_history() override { return loaded; }
+    BleDeviceHistory load_history() override {
+        ++load_count;
+        return loaded;
+    }
     bool save_history(const BleDeviceHistory& history) override {
         ++save_count;
         saved = history;
@@ -22,6 +25,7 @@ public:
 
     BleDeviceHistory loaded{};
     BleDeviceHistory saved{};
+    int load_count{};
     int save_count{};
     bool save_ok{true};
 };
@@ -36,6 +40,15 @@ BleManagerDecision take(BleDeviceManager& manager,
 }  // namespace
 
 int main() {
+    FakePersistence idempotent_persistence;
+    BleDeviceManager idempotent(idempotent_persistence);
+    idempotent.start(0);
+    take(idempotent, BleManagerDecisionKind::StartPortal, 0);
+    idempotent.set_portal_active(true);
+    idempotent.start(1);
+    assert(idempotent_persistence.load_count == 1);
+    assert(idempotent.snapshot(1).setup.portal_active);
+
     FakePersistence persistence;
     BleDeviceManager manager(persistence);
     manager.start(0);

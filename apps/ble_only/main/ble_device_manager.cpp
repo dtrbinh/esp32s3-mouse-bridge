@@ -1,11 +1,12 @@
 #include "ble_device_manager.hpp"
 
 void BleDeviceManager::start(uint32_t now_ms) {
-    BleDeviceHistory loaded = persistence_.load_history();
     Guard guard(lock_);
-    history_ = loaded;
+    if (started_) return;
+    history_ = persistence_.load_history();
     catalog_.clear();
     setup_.start(history_.selected(), now_ms);
+    started_ = true;
     history_dirty_ = false;
     persistence_failed_ = false;
     extra_read_ = 0;

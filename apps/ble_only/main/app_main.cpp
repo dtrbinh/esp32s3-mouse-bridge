@@ -13,6 +13,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "nvs_flash.h"
 
 #include <array>
 #include <cstdint>
@@ -77,6 +78,16 @@ const char* setup_phase_name(BleSetupPhase phase) {
     case BleSetupPhase::Failed: return "failed";
     }
     return "unknown";
+}
+
+esp_err_t initialize_nvs() {
+    esp_err_t result = nvs_flash_init();
+    if (result == ESP_ERR_NVS_NO_FREE_PAGES ||
+        result == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        result = nvs_flash_erase();
+        if (result == ESP_OK) result = nvs_flash_init();
+    }
+    return result;
 }
 
 void wake_pipeline(void* context) {
@@ -242,8 +253,30 @@ extern "C" void app_main() {
     ESP_ERROR_CHECK(pipeline_handle != nullptr ? ESP_OK : ESP_ERR_NO_MEM);
     arbiter.set_wake_callback(wake_pipeline, &pipeline_handle);
 
+    // Follow Espressif's coexistence startup order: Wi-Fi before NimBLE.
+    // This lets the setup AP establish its RF time slice before BLE scanning.
+    ESP_ERROR_CHECK(initialize_nvs());
+    const uint32_t bootstrap_ms =
+        static_cast<uint32_t>(esp_timer_get_time() / 1'000);
+    device_manager.start(bootstrap_ms);
+    bool portal_bootstrapped = false;
+    if (const auto initial = device_manager.service(bootstrap_ms)) {
+        ESP_ERROR_CHECK(initial->kind == BleManagerDecisionKind::StartPortal
+                            ? ESP_OK
+                            : ESP_ERR_INVALID_STATE);
+        ESP_ERROR_CHECK(setup_portal.start());
+        device_manager.set_portal_active(true);
+        portal_bootstrapped = true;
+    }
+
     ble_mouse.set_selection_delegate(&device_manager);
     ESP_ERROR_CHECK(ble_mouse.start());
+    if (portal_bootstrapped) {
+        ESP_ERROR_CHECK(ble_mouse.enqueue_control(
+                            {BleClientCommandKind::StartScan, {}})
+                            ? ESP_OK
+                            : ESP_ERR_NO_MEM);
+    }
     ESP_ERROR_CHECK(boot_control.start(pipeline_handle));
     ESP_ERROR_CHECK(xTaskCreateStaticPinnedToCore(
                         setup_task, "ble_only_setup", setup_stack.size(),
