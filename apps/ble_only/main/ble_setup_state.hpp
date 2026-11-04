@@ -59,6 +59,9 @@ public:
     void on_connected(BlePeerAddress peer, uint32_t now_ms);
     void on_disconnected(uint32_t now_ms);
     void on_failed(BlePeerAddress peer, BleAttemptError error);
+    void on_reconnect_failed(BlePeerAddress attempted_peer,
+                             BlePeerAddress saved_peer,
+                             BleAttemptError error, uint32_t now_ms);
     void on_portal_active(bool active);
     void on_portal_start_failed();
 

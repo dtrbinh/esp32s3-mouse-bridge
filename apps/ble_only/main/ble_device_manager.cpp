@@ -12,6 +12,8 @@ void BleDeviceManager::start(uint32_t now_ms) {
     extra_read_ = 0;
     extra_write_ = 0;
     extra_count_ = 0;
+    reconnect_attempt_ = false;
+    reconnect_retry_after_ms_ = now_ms;
 }
 
 bool BleDeviceManager::request_connect(BlePeerAddress peer) {
@@ -20,6 +22,7 @@ bool BleDeviceManager::request_connect(BlePeerAddress peer) {
     if (setup_.snapshot().attempt.has_value()) return false;
     history_.disconnect_without_forget();
     history_.select(peer);
+    reconnect_attempt_ = false;
     history_dirty_ = true;
     persistence_failed_ = false;
     setup_.request_connect(peer);
@@ -176,7 +179,10 @@ void BleDeviceManager::on_advertisement(
         comparison == normalize_ble_address(*selected);
     const bool name_matches = !selected_name.empty() &&
                               normalized.name == selected_name;
-    if (address_matches || name_matches) {
+    const bool retry_due =
+        static_cast<int32_t>(now_ms - reconnect_retry_after_ms_) >= 0;
+    if ((address_matches || name_matches) && retry_due) {
+        reconnect_attempt_ = true;
         setup_.request_connect(normalized.address);
     }
 }
@@ -196,6 +202,7 @@ void BleDeviceManager::on_validated_connection(
     if (rotated_identity) {
         (void)history_.forget(*previous_identity);
     }
+    reconnect_attempt_ = false;
     history_.record_success(stable_identity, name);
     history_dirty_ = true;
     persistence_failed_ = false;
@@ -204,8 +211,20 @@ void BleDeviceManager::on_validated_connection(
 
 void BleDeviceManager::on_attempt_failed(BlePeerAddress observed,
                                          BleSelectionFailure failure,
-                                         uint32_t) {
+                                         uint32_t now_ms) {
     Guard guard(lock_);
+    observed = normalize_ble_address(observed);
+    const auto saved_peer = history_.selected();
+    if (reconnect_attempt_ && saved_peer.has_value() &&
+        failure == BleSelectionFailure::ConnectionFailed &&
+        setup_.snapshot().attempt == observed) {
+        reconnect_attempt_ = false;
+        reconnect_retry_after_ms_ = now_ms + kReconnectRetryDelayMs;
+        setup_.on_reconnect_failed(observed, *saved_peer,
+                                   BleAttemptError::ConnectionFailed,
+                                   now_ms);
+        return;
+    }
     setup_.on_failed(observed,
                      failure == BleSelectionFailure::NotMouse
                          ? BleAttemptError::NotMouse
@@ -216,5 +235,7 @@ void BleDeviceManager::on_attempt_failed(BlePeerAddress observed,
 
 void BleDeviceManager::on_disconnected(uint32_t now_ms) {
     Guard guard(lock_);
+    reconnect_attempt_ = false;
+    reconnect_retry_after_ms_ = now_ms;
     setup_.on_disconnected(now_ms);
 }

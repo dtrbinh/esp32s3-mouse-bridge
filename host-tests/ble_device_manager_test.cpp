@@ -148,8 +148,15 @@ int main() {
 
     reconnect.on_attempt_failed(freewolf_rpa,
                                 BleSelectionFailure::ConnectionFailed, 130);
-    take(reconnect, BleManagerDecisionKind::StartPortal, 130);
-    assert(!reconnect.snapshot(130).setup.selected.has_value());
+    assert(reconnect.snapshot(130).setup.selected == freewolf_id);
+    assert(!reconnect.service(130).has_value());
+    reconnect.on_advertisement(advertisement(freewolf_rpa, "Freewolf X7"),
+                               freewolf_id, 1'129);
+    assert(!reconnect.service(1'129).has_value());
+    reconnect.on_advertisement(advertisement(freewolf_rpa, "Freewolf X7"),
+                               freewolf_id, 1'130);
+    decision = take(reconnect, BleManagerDecisionKind::Connect, 1'130);
+    assert(decision.peer == freewolf_rpa);
 
     FakePersistence controller_identity_persistence;
     controller_identity_persistence.loaded.record_success(address(0x17, 0),

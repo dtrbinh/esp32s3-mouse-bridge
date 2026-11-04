@@ -32,6 +32,20 @@ int main() {
     assert(reconnect.snapshot().portal_desired);
     take(reconnect, BleSetupActionKind::StartPortal);
 
+    BleSetupState reconnect_retry;
+    reconnect_retry.start(address(1), 0);
+    reconnect_retry.request_connect(address(2));
+    take(reconnect_retry, BleSetupActionKind::Connect);
+    reconnect_retry.on_reconnect_failed(
+        address(2), address(1), BleAttemptError::ConnectionFailed, 500);
+    assert(reconnect_retry.snapshot().phase ==
+           BleSetupPhase::ScanningSelected);
+    assert(reconnect_retry.snapshot().selected == address(1));
+    assert(!reconnect_retry.snapshot().attempt.has_value());
+    assert(!reconnect_retry.take_action().has_value());
+    reconnect_retry.tick(10'000);
+    take(reconnect_retry, BleSetupActionKind::StartPortal);
+
     BleSetupState connecting_fallback;
     connecting_fallback.start(address(1), 100);
     connecting_fallback.request_connect(address(1));

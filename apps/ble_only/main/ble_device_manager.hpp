@@ -73,6 +73,8 @@ public:
     void on_client_start(uint32_t now_ms) override { start(now_ms); }
 
 private:
+    static constexpr uint32_t kReconnectRetryDelayMs = 1'000;
+
     class ManagerLock {
     public:
 #ifdef ESP_PLATFORM
@@ -118,4 +120,6 @@ private:
     size_t extra_write_{};
     size_t extra_count_{};
     std::string_view auto_connect_name_fragment_{};
+    bool reconnect_attempt_{};
+    uint32_t reconnect_retry_after_ms_{};
 };

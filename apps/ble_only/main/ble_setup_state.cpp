@@ -167,6 +167,19 @@ void BleSetupState::on_failed(BlePeerAddress peer, BleAttemptError error) {
     ensure_portal();
 }
 
+void BleSetupState::on_reconnect_failed(BlePeerAddress attempted_peer,
+                                        BlePeerAddress saved_peer,
+                                        BleAttemptError error,
+                                        uint32_t now_ms) {
+    if (snapshot_.attempt != attempted_peer) return;
+    last_now_ms_ = now_ms;
+    snapshot_.attempt.reset();
+    snapshot_.selected = saved_peer;
+    snapshot_.error = error;
+    snapshot_.phase = BleSetupPhase::ScanningSelected;
+    snapshot_.wifi_shutdown_due_ms.reset();
+}
+
 void BleSetupState::on_portal_active(bool active) {
     snapshot_.portal_active = active;
 }
