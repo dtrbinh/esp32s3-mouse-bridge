@@ -6,10 +6,10 @@ Kết quả phần mềm dưới đây đã được chạy trên host. Các m�
 
 | Kiểm tra | Kết quả hiện tại | Bằng chứng |
 |---|---|---|
-| Host unit tests | PASS | 12/12 CTest |
-| Firmware input ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x9a2a0`, còn 40% partition |
+| Host unit tests | PASS | 13/13 CTest |
+| Firmware input ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x9a2b0`, còn 40% partition |
 | Firmware output ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x3afe0`, còn 77% partition; HID endpoint 8 byte, interval 1 ms |
-| Firmware BLE-only ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x87ae0`, còn 47% partition; BLE central + USB HID trên một bo |
+| Firmware BLE-only ESP-IDF | PASS | build ESP-IDF 6.0.3; `0x87af0`, còn 47% partition; BLE central + USB HID trên một bo |
 | Whitespace/static diff | PASS | `git diff --check` |
 
 ## Kiểm tra phần cứng BLE-only một bo

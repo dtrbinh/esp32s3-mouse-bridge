@@ -1,5 +1,7 @@
 #include "ble_hogp_client.hpp"
 
+#include "ble_bond_reset.hpp"
+
 #include "mouse_bridge/cadence.hpp"
 
 #include "hid_parser/mouse_decoder.hpp"
@@ -171,9 +173,14 @@ void BleHogpClient::suspend_forwarding() {
 void BleHogpClient::clear_bond() {
     forwarding_.store(false);
     (void)ble_store_clear();
-    if (auto* device = device_.load(std::memory_order_acquire)) {
+    auto* device = device_.load(std::memory_order_acquire);
+    if (plan_ble_bond_reset(device != nullptr) ==
+        BleBondResetDisposition::CloseConnectedDevice) {
         (void)esp_hidh_dev_close(device);
+        return;
     }
+    (void)ble_gap_disc_cancel();
+    resume_or_scan();
 }
 
 void BleHogpClient::hidh_callback(void* handler_arg, esp_event_base_t,

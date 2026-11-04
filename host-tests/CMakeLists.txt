@@ -99,3 +99,8 @@ target_include_directories(ble_only_mode_test PRIVATE
     ../components/profile_engine/include)
 add_test(NAME ble_only_mode COMMAND ble_only_mode_test)
 
+add_executable(ble_bond_reset_test ble_bond_reset_test.cpp)
+target_compile_features(ble_bond_reset_test PRIVATE cxx_std_20)
+target_include_directories(ble_bond_reset_test PRIVATE ../apps/input/main)
+add_test(NAME ble_bond_reset COMMAND ble_bond_reset_test)
+
