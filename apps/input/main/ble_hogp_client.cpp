@@ -269,7 +269,10 @@ void BleHogpClient::resume_or_scan() {
     ble_gap_disc_params params{};
     params.filter_duplicates = 0;
     params.passive = 0;
-    params.itvl = 0x30;
+    // Leave half of each scan interval available to the co-located Wi-Fi
+    // SoftAP. A continuous 100% BLE scan can prevent the setup AP from
+    // emitting reliable beacons on the shared ESP32-S3 radio.
+    params.itvl = 0x60;
     params.window = 0x30;
     (void)ble_gap_disc(own_address_type, BLE_HS_FOREVER, &params,
                        scan_callback, this);
