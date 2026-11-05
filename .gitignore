@@ -4,7 +4,11 @@
 /**/sdkconfig
 /.idea/
 /.vscode/
+/.agents/
+/.codex/
 /.superpowers/
+/docs/
+/host-tests/
 /.toolchains/
 /**/managed_components/
 
