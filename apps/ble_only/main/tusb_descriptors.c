@@ -5,11 +5,12 @@
 #include "tusb.h"
 
 #define MOUSE_REPORT_LEN 8
+#define KEYBOARD_REPORT_LEN 8
 #if CONFIG_TINYUSB_CDC_ENABLED
 #define CONFIG_TOTAL_LEN \
-    (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_DESC_LEN)
+    (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + 2 * TUD_HID_DESC_LEN)
 #else
-#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN)
+#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + 2 * TUD_HID_DESC_LEN)
 #endif
 
 const uint8_t mouse_hid_report_descriptor[] = {
@@ -51,20 +52,30 @@ const uint8_t mouse_hid_report_descriptor[] = {
     0xC0,              // End Collection
 };
 
+const uint8_t keyboard_hid_report_descriptor[] = {
+    TUD_HID_REPORT_DESC_KEYBOARD()
+};
+
 const uint8_t mouse_hid_configuration_descriptor[] = {
 #if CONFIG_TINYUSB_CDC_ENABLED
-    TUD_CONFIG_DESCRIPTOR(1, 3, 0, CONFIG_TOTAL_LEN,
+    TUD_CONFIG_DESCRIPTOR(1, 4, 0, CONFIG_TOTAL_LEN,
                           TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
     TUD_CDC_DESCRIPTOR(0, 5, 0x81, 8, 0x02, 0x82, 64),
     TUD_HID_DESCRIPTOR(2, 4, HID_ITF_PROTOCOL_MOUSE,
                        sizeof(mouse_hid_report_descriptor), 0x83,
                        MOUSE_REPORT_LEN, 1),
+    TUD_HID_DESCRIPTOR(3, 6, HID_ITF_PROTOCOL_KEYBOARD,
+                       sizeof(keyboard_hid_report_descriptor), 0x84,
+                       KEYBOARD_REPORT_LEN, 1),
 #else
-    TUD_CONFIG_DESCRIPTOR(1, 1, 0, CONFIG_TOTAL_LEN,
+    TUD_CONFIG_DESCRIPTOR(1, 2, 0, CONFIG_TOTAL_LEN,
                           TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
     TUD_HID_DESCRIPTOR(0, 4, HID_ITF_PROTOCOL_MOUSE,
                        sizeof(mouse_hid_report_descriptor), 0x81,
                        MOUSE_REPORT_LEN, 1),
+    TUD_HID_DESCRIPTOR(1, 6, HID_ITF_PROTOCOL_KEYBOARD,
+                       sizeof(keyboard_hid_report_descriptor), 0x82,
+                       KEYBOARD_REPORT_LEN, 1),
 #endif
 };
 
@@ -75,16 +86,17 @@ const char* mouse_hid_string_descriptor[] = {
     "S3HID0001",
     "Mouse",
     "Diagnostics",
+    "Keyboard",
 };
 
 const uint8_t mouse_hid_string_descriptor_count =
     sizeof(mouse_hid_string_descriptor) / sizeof(mouse_hid_string_descriptor[0]);
 
-static volatile bool boot_protocol;
+static volatile bool boot_protocol[2];
 
 uint8_t const* tud_hid_descriptor_report_cb(uint8_t instance) {
-    (void)instance;
-    return mouse_hid_report_descriptor;
+    return instance == 0 ? mouse_hid_report_descriptor
+                         : keyboard_hid_report_descriptor;
 }
 
 uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id,
@@ -109,8 +121,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
 }
 
 void tud_hid_set_protocol_cb(uint8_t instance, uint8_t protocol) {
-    (void)instance;
-    boot_protocol = protocol == HID_PROTOCOL_BOOT;
+    if (instance < 2) boot_protocol[instance] = protocol == HID_PROTOCOL_BOOT;
 }
 
-bool mouse_hid_boot_protocol(void) { return boot_protocol; }
+bool mouse_hid_boot_protocol(void) { return boot_protocol[0]; }

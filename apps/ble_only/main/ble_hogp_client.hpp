@@ -24,11 +24,18 @@ struct os_mbuf;
 
 class BleHogpClient {
 public:
+    using KeyboardCallback = void (*)(
+        void* context, const mouse_bridge::KeyboardReport& report);
+
     explicit BleHogpClient(SourceArbiter& arbiter) : arbiter_(arbiter) {}
 
     esp_err_t start();
     void set_selection_delegate(BleSelectionDelegate* delegate) {
         selection_delegate_ = delegate;
+    }
+    void set_keyboard_callback(KeyboardCallback callback, void* context) {
+        keyboard_callback_ = callback;
+        keyboard_context_ = context;
     }
     bool enqueue_control(BleClientCommand command);
     void suspend_forwarding();
@@ -59,6 +66,7 @@ private:
         uint16_t cccd_handle{};
         uint16_t report_reference_handle{};
         uint8_t report_id{};
+        uint8_t report_type{1};
         bool subscribed{};
     };
 
@@ -108,6 +116,7 @@ private:
     void handle_disconnect(int reason);
     void request_low_latency_interval();
     void decode_input(uint16_t value_handle, const os_mbuf* data);
+    void release_keyboard();
     void forget_peer(BlePeerAddress peer);
     [[nodiscard]] std::optional<BlePeerAddress> connected_identity() const;
     void remember_name(BlePeerAddress peer, std::string_view name);
@@ -118,6 +127,8 @@ private:
     static BleHogpClient* instance_;
     SourceArbiter& arbiter_;
     BleSelectionDelegate* selection_delegate_{};
+    KeyboardCallback keyboard_callback_{};
+    void* keyboard_context_{};
     TaskHandle_t worker_handle_{};
     StaticTask_t worker_control_{};
     std::array<StackType_t, kWorkerStackWords> worker_stack_{};
@@ -132,7 +143,9 @@ private:
     std::array<uint8_t, kMaxReportMapBytes> report_map_{};
     size_t report_map_length_{};
     hid_parser::MouseLayout mouse_layout_{};
+    hid_parser::KeyboardLayout keyboard_layout_{};
     bool mouse_layout_valid_{};
+    bool keyboard_layout_valid_{};
     uint16_t service_start_{};
     uint16_t service_end_{};
     uint16_t report_map_handle_{};

@@ -1,5 +1,7 @@
 #include "ble_hogp_client.hpp"
 
+#include "hid_parser/keyboard_decoder.hpp"
+
 #include "hid_parser/mouse_decoder.hpp"
 #include "mouse_bridge/cadence.hpp"
 
@@ -469,6 +471,18 @@ void BleHogpClient::finish_report_map() {
     }
     mouse_layout_ = parsed.layout;
     mouse_layout_valid_ = true;
+    const auto keyboard = hid_parser::parse_keyboard_descriptor(
+        std::span<const uint8_t>(report_map_.data(), report_map_length_));
+    if (keyboard.status == hid_parser::ParseStatus::Ok) {
+        keyboard_layout_ = keyboard.layout;
+        keyboard_layout_valid_ = true;
+        ESP_LOGI(kTag, "keyboard report detected id=%u bits=%u",
+                 static_cast<unsigned>(keyboard_layout_.report_id),
+                 static_cast<unsigned>(keyboard_layout_.report_bits));
+    } else {
+        keyboard_layout_ = {};
+        keyboard_layout_valid_ = false;
+    }
     subscribe_cursor_ = 0;
     start_next_subscription();
 }
@@ -537,6 +551,7 @@ int BleHogpClient::descriptor_callback(
         ESP_LOGW(kTag, "report_reference_start rc=%d", rc);
     }
     characteristic.report_id = self.mouse_layout_.report_id;
+    characteristic.report_type = 1;
     self.write_active_cccd();
     return 0;
 }
@@ -552,8 +567,10 @@ int BleHogpClient::report_reference_callback(
         uint8_t reference[2]{};
         os_mbuf_copydata(attribute->om, 0, sizeof(reference), reference);
         characteristic.report_id = reference[0];
+        characteristic.report_type = reference[1];
     } else {
         characteristic.report_id = self.mouse_layout_.report_id;
+        characteristic.report_type = 1;
         ESP_LOGW(kTag, "report_reference_read status=%d", error->status);
     }
     self.write_active_cccd();
@@ -644,6 +661,7 @@ void BleHogpClient::handle_disconnect(int reason) {
     ESP_LOGW(kTag, "disconnected reason=%d validated=%s", reason,
              was_connected ? "yes" : "no");
     if (was_connected) {
+        release_keyboard();
         arbiter_.on_disconnected(mouse_bridge::InputSource::Ble, now_us);
         if (selection_delegate_ != nullptr) {
             selection_delegate_->on_disconnected(
@@ -686,7 +704,7 @@ void BleHogpClient::request_low_latency_interval() {
 void BleHogpClient::decode_input(uint16_t value_handle,
                                  const os_mbuf* data) {
     if (!forwarding_.load(std::memory_order_acquire) ||
-        !mouse_layout_valid_ || data == nullptr) {
+        data == nullptr) {
         return;
     }
     const auto iterator = std::find_if(
@@ -697,33 +715,51 @@ void BleHogpClient::decode_input(uint16_t value_handle,
                    characteristic.value_handle == value_handle;
         });
     if (iterator == characteristics_.begin() + characteristic_count_) return;
-    if (mouse_layout_.has_report_id &&
-        iterator->report_id != mouse_layout_.report_id) {
-        return;
-    }
+    if (iterator->report_type != 1) return;
 
     std::array<uint8_t, 65> report_bytes{};
     const size_t payload_length = OS_MBUF_PKTLEN(data);
-    const size_t prefix = mouse_layout_.has_report_id ? 1 : 0;
+    const bool has_report_id = iterator->report_id != 0;
+    const size_t prefix = has_report_id ? 1 : 0;
     if (payload_length + prefix > report_bytes.size()) return;
     if (prefix != 0) report_bytes[0] = iterator->report_id;
     os_mbuf_copydata(data, 0, payload_length,
                      report_bytes.data() + prefix);
-    mouse_bridge::MouseReport report{};
-    if (hid_parser::decode_mouse_report(
-            mouse_layout_,
-            std::span<const uint8_t>(report_bytes.data(),
-                                     payload_length + prefix),
-            report) != hid_parser::DecodeStatus::Ok) {
-        return;
+
+    const auto bytes = std::span<const uint8_t>(
+        report_bytes.data(), payload_length + prefix);
+    if (keyboard_layout_valid_ &&
+        iterator->report_id == keyboard_layout_.report_id) {
+        mouse_bridge::KeyboardReport keyboard{};
+        if (hid_parser::decode_keyboard_report(keyboard_layout_, bytes,
+                                               keyboard) ==
+            hid_parser::DecodeStatus::Ok) {
+            if (keyboard_callback_ != nullptr) {
+                keyboard_callback_(keyboard_context_, keyboard);
+            }
+            return;
+        }
     }
-    const uint16_t units =
-        negotiated_interval_units_.load(std::memory_order_relaxed);
-    report.poll_interval_us =
-        units == 0 ? 0 : mouse_bridge::sanitize_poll_interval_us(
-                             static_cast<uint32_t>(units) * 1'250U);
-    arbiter_.on_report(mouse_bridge::InputSource::Ble, report,
-                       static_cast<uint64_t>(esp_timer_get_time()));
+    if (mouse_layout_valid_ &&
+        iterator->report_id == mouse_layout_.report_id) {
+        mouse_bridge::MouseReport report{};
+        if (hid_parser::decode_mouse_report(mouse_layout_, bytes, report) ==
+            hid_parser::DecodeStatus::Ok) {
+            const uint16_t units =
+                negotiated_interval_units_.load(std::memory_order_relaxed);
+            report.poll_interval_us =
+                units == 0 ? 0 : mouse_bridge::sanitize_poll_interval_us(
+                                     static_cast<uint32_t>(units) * 1'250U);
+            arbiter_.on_report(mouse_bridge::InputSource::Ble, report,
+                               static_cast<uint64_t>(esp_timer_get_time()));
+        }
+    }
+}
+
+void BleHogpClient::release_keyboard() {
+    if (keyboard_callback_ != nullptr) {
+        keyboard_callback_(keyboard_context_, {});
+    }
 }
 
 void BleHogpClient::resume_or_scan() {
@@ -751,6 +787,7 @@ void BleHogpClient::resume_or_scan() {
 
 void BleHogpClient::suspend_forwarding() {
     forwarding_.store(false, std::memory_order_release);
+    release_keyboard();
 }
 
 void BleHogpClient::clear_bond() {
@@ -845,4 +882,6 @@ void BleHogpClient::reset_discovery() {
     report_map_length_ = 0;
     mouse_layout_ = {};
     mouse_layout_valid_ = false;
+    keyboard_layout_ = {};
+    keyboard_layout_valid_ = false;
 }

@@ -184,7 +184,7 @@ git commit -m "feat: add single-board ble usb hid firmware"
 
 **Interfaces:**
 - Consumes: the BLE-only binary and BOOT behavior from Tasks 1-3.
-- Produces: exact build/flash/monitor commands and a hardware checklist that remains `CHƯA CHẠY` until measured on the user's board.
+- Produces: exact build/flash/monitor commands and a hardware checklist that remains `NOT RUN` until measured on the user's board.
 
 - [ ] **Step 1: Document one-board operation**
 
@@ -192,7 +192,7 @@ Document that the onboard USB-C goes directly to the PC, no VBUS Host circuit or
 
 - [ ] **Step 2: Add validation cases**
 
-Add BLE-only enumeration, pair, raw pass-through with mods off, all 14 profile selections, 1.5-second toggle, 5-second bond clear, reconnect, disconnect release, suspend/resume, and latency checks as `CHƯA CHẠY`.
+Add BLE-only enumeration, pair, raw pass-through with mods off, all 14 profile selections, 1.5-second toggle, 5-second bond clear, reconnect, disconnect release, suspend/resume, and latency checks as `NOT RUN`.
 
 - [ ] **Step 3: Run final clean verification**
 

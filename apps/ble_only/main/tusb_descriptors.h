@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 extern const uint8_t mouse_hid_report_descriptor[];
+extern const uint8_t keyboard_hid_report_descriptor[];
 extern const uint8_t mouse_hid_configuration_descriptor[];
 extern const char* mouse_hid_string_descriptor[];
 extern const uint8_t mouse_hid_string_descriptor_count;

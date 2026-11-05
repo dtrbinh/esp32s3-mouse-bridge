@@ -17,15 +17,13 @@ idf_component_register(
         "portal_codec.cpp"
         "portal_lifecycle.cpp"
         "setup_portal.cpp"
-        "../../input/main/source_arbiter.cpp"
-        "../../output/main/output_state.cpp"
-        "../../output/main/report_scheduler.cpp"
-        "../../output/main/usb_mouse_device.cpp"
-        "../../output/main/tusb_descriptors.c"
+        "source_arbiter.cpp"
+        "output_state.cpp"
+        "report_scheduler.cpp"
+        "usb_mouse_device.cpp"
+        "tusb_descriptors.c"
     INCLUDE_DIRS
         "."
-        "../../input/main"
-        "../../output/main"
     REQUIRES
         esp_timer
         esp_driver_gpio

@@ -1,52 +1,43 @@
-# Đấu dây hai bo ESP32-S3-Zero N4R2
+# Hardware Connections
 
-## Sơ đồ chức năng
+## Overview
 
 ```text
-Chuột dây / receiver 2.4 GHz ─ USB-A Host ┐
-                                          ├─ ESP32-S3 input ─ SPI ─ ESP32-S3 output ─ USB-C ─ PC
-Chuột BLE ────────────────────────────────┘
+BLE mouse ⇄ ESP32-S3 N8R8 ── native USB-C ── PC
 ```
 
-Bo input làm USB Host hoặc BLE Central. Bo output chỉ làm USB HID Device với PC.
+Only one board and one data-capable USB-C cable are required. USB-C supplies
+5 V to the board and carries USB HID output to the computer.
 
-## SPI giữa hai bo
+## Native USB
 
-Tắt nguồn cả hai bo trước khi đấu. Dây nên ngắn, đặc biệt SCLK và GND.
+The ESP32-S3 uses GPIO19 for D- and GPIO20 for D+. On ESP32-S3-Zero and Super
+Mini boards, these signals are routed internally to USB-C and may not be exposed
+on the headers. No external D+/D- wiring is required.
 
-| Tín hiệu | Bo input | Bo output | Hướng |
-|---|---:|---:|---|
-| SCLK | GPIO4 | GPIO4 | input → output |
-| MOSI | GPIO5 | GPIO5 | input → output |
-| MISO | GPIO6 | GPIO6 | dự phòng output → input |
-| CS | GPIO7 | GPIO7 | input → output |
-| READY | GPIO8 | GPIO8 | input → output |
-| GND | GND | GND | bắt buộc chung mass |
+Do not inject another 5 V supply into USB-C VBUS while the port is connected to
+a computer. BLE-only firmware does not power an external mouse or receiver.
 
-SPI chạy mode 0, 10 MHz, packet protocol v2 cố định 34 byte. READY phát xung cạnh lên sau khi một transaction hoàn tất. Hai bo phải được flash cùng phiên bản firmware.
+## BOOT and RESET
 
-## USB Host trên bo input
+- BOOT/GPIO0: short press to select a profile; hold to toggle profiles or open
+  the portal.
+- RESET/EN: use with BOOT to enter ROM download mode for flashing.
 
-Gắn một đầu USB-A cái ngoài:
+## Status LED
 
-| USB-A | ESP32-S3 input |
+The onboard WS2812 uses GPIO21 by default. Change `CONFIG_BLE_ONLY_LED_GPIO` for
+board variants that route it to another pin.
+
+## Optional UART debugging
+
+To monitor logs after native USB switches to HID, connect an external USB-UART
+adapter:
+
+| USB-UART | ESP32-S3 |
 |---|---|
-| D- | GPIO19 |
-| D+ | GPIO20 |
-| GND | GND chung |
-| VBUS | nguồn 5 V ngoài qua load switch giới hạn dòng |
+| RX | Board UART0 TX |
+| TX | Board UART0 RX |
+| GND | GND |
 
-Không cấp VBUS chuột từ GPIO. Nên dùng load switch có giới hạn dòng, chống dòng ngược và tụ decoupling theo datasheet của switch.
-
-> Cảnh báo: USB-C onboard của bo input dùng chung GPIO19/GPIO20. Không cắm USB-C onboard vào máy tính khi VBUS của cổng USB-A Host đang bật. Việc nối hai nguồn 5 V có thể gây back-feed và hỏng phần cứng.
-
-## USB Device trên bo output
-
-Cổng USB-C onboard của bo output là cổng native USB nối với PC. Firmware xuất HID mouse Full Speed, endpoint IN `0x81`, packet 8 byte, interval 1 ms.
-
-## Nút BOOT
-
-- BOOT/GPIO0 bo input: giữ lâu để xóa bond BLE duy nhất và quét ghép đôi lại.
-- BOOT/GPIO0 bo output: giữ để bypass chuyển động sinh bởi profile; chuyển động vật lý và nút chuột vẫn đi qua.
-
-Hai chức năng độc lập vì nằm trên hai bo khác nhau.
+Use a 3.3 V logic-level adapter and always connect the grounds.

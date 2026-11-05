@@ -211,7 +211,7 @@ Use cursor writers over caller-provided spans. DNS supports one standard questio
 
 - [ ] **Step 4: Implement the embedded page**
 
-Render two compact sections, Vietnamese status text, connected green dot, saved markers, per-row busy state, Connect/Disconnect/Forget buttons, a `Đóng cấu hình` action, confirmation before forget, empty/error states, and a responsive single-column layout without external assets.
+Render two compact sections, English status text, connected green dot, saved markers, per-row busy state, Connect/Disconnect/Forget buttons, a `Close setup` action, confirmation before forget, empty/error states, and a responsive single-column layout without external assets.
 
 - [ ] **Step 5: Run the host suite**
 
@@ -404,7 +404,7 @@ Document first boot, joining `MouseBridge-Setup-XXXX`, automatic captive opening
 
 - [ ] **Step 2: Add hardware validation rows**
 
-Add `CHƯA CHẠY` rows for macOS/iOS/Android/Windows captive detection, Freewolf X7 visibility without advertised `0x1812`, select/validate/store/shutdown, power-cycle RPA reconnect, A→B failure, disconnect/forget, invalid HID rejection, LED transitions, Wi-Fi disappearance, and post-setup HID latency/function.
+Add `NOT RUN` rows for macOS/iOS/Android/Windows captive detection, Freewolf X7 visibility without advertised `0x1812`, select/validate/store/shutdown, power-cycle RPA reconnect, A→B failure, disconnect/forget, invalid HID rejection, LED transitions, Wi-Fi disappearance, and post-setup HID latency/function.
 
 - [ ] **Step 3: Run final software gates**
 

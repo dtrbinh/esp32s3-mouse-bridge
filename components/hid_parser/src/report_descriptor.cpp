@@ -1,5 +1,6 @@
 #include "hid_parser/report_descriptor.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 
@@ -179,6 +180,152 @@ ParseResult parse_mouse_descriptor(std::span<const uint8_t> descriptor) {
 
     if (!result.layout.x.valid || !result.layout.y.valid) {
         result.status = ParseStatus::MissingRelativeAxes;
+        return result;
+    }
+    result.layout.report_bits = offsets[result.layout.report_id];
+    result.status = ParseStatus::Ok;
+    return result;
+}
+
+KeyboardParseResult parse_keyboard_descriptor(
+    std::span<const uint8_t> descriptor) {
+    KeyboardParseResult result{};
+    Globals global{};
+    std::array<Globals, 4> stack{};
+    size_t stack_size = 0;
+    Locals local{};
+    std::array<uint16_t, 256> offsets{};
+    int collection_depth = 0;
+    int keyboard_depth = -1;
+    bool selected_report = false;
+    size_t cursor = 0;
+
+    while (cursor < descriptor.size()) {
+        const uint8_t prefix = descriptor[cursor++];
+        if (prefix == 0xFE) {
+            result.status = ParseStatus::LongItem;
+            return result;
+        }
+        const uint8_t size_code = prefix & 0x03U;
+        const size_t size = size_code == 3 ? 4 : size_code;
+        if (cursor + size > descriptor.size()) {
+            result.status = ParseStatus::Truncated;
+            return result;
+        }
+        const auto data = descriptor.subspan(cursor, size);
+        cursor += size;
+        const uint8_t type = (prefix >> 2U) & 0x03U;
+        const uint8_t tag = (prefix >> 4U) & 0x0FU;
+        const uint32_t uvalue = read_unsigned(data);
+
+        if (type == 1) {
+            switch (tag) {
+                case 0: global.usage_page = static_cast<uint16_t>(uvalue); break;
+                case 1: global.logical_min = read_signed(data); break;
+                case 2: global.logical_max = read_signed(data); break;
+                case 7: global.report_size = static_cast<uint8_t>(uvalue); break;
+                case 8: global.report_id = static_cast<uint8_t>(uvalue); break;
+                case 9: global.report_count = static_cast<uint8_t>(uvalue); break;
+                case 10:
+                    if (stack_size == stack.size()) {
+                        result.status = ParseStatus::StackOverflow;
+                        return result;
+                    }
+                    stack[stack_size++] = global;
+                    break;
+                case 11:
+                    if (stack_size == 0) {
+                        result.status = ParseStatus::StackUnderflow;
+                        return result;
+                    }
+                    global = stack[--stack_size];
+                    break;
+                default: break;
+            }
+            continue;
+        }
+        if (type == 2) {
+            if (tag == 0 && local.usage_count < local.usages.size()) {
+                local.usages[local.usage_count++] = uvalue;
+            } else if (tag == 1) {
+                local.usage_min = uvalue;
+                local.has_range = true;
+            } else if (tag == 2) {
+                local.usage_max = uvalue;
+                local.has_range = true;
+            }
+            continue;
+        }
+        if (type != 0) continue;
+        if (tag == 10) {
+            ++collection_depth;
+            if (global.usage_page == 0x01 && local.usage_at(0) == 0x06 &&
+                keyboard_depth < 0) {
+                keyboard_depth = collection_depth;
+            }
+            local.clear();
+            continue;
+        }
+        if (tag == 12) {
+            if (keyboard_depth == collection_depth) keyboard_depth = -1;
+            --collection_depth;
+            local.clear();
+            continue;
+        }
+        if (tag != 8) {
+            local.clear();
+            continue;
+        }
+
+        const uint16_t base = offsets[global.report_id];
+        const uint16_t width = static_cast<uint16_t>(global.report_size) *
+                               global.report_count;
+        const bool constant = (uvalue & 0x01U) != 0;
+        const bool variable = (uvalue & 0x02U) != 0;
+        if (keyboard_depth >= 0 && !constant && global.usage_page == 0x07 &&
+            (!selected_report || result.layout.report_id == global.report_id)) {
+            if (!selected_report) {
+                selected_report = true;
+                result.layout.report_id = global.report_id;
+                result.layout.has_report_id = global.report_id != 0;
+            }
+            if (!variable && global.report_size > 0 &&
+                global.report_size <= 8) {
+                result.layout.key_array_bit_offset = base;
+                result.layout.key_array_bit_size = global.report_size;
+                result.layout.key_array_count = global.report_count;
+                result.layout.key_array_valid = true;
+            } else if (variable) {
+                for (size_t i = 0; i < global.report_count; ++i) {
+                    const uint32_t usage = local.usage_at(i);
+                    if (usage >= 0xE0 && usage <= 0xE7) {
+                        result.layout.modifiers[usage - 0xE0] = {
+                            static_cast<uint16_t>(base +
+                                i * global.report_size),
+                            global.report_size, true};
+                    }
+                }
+                if (global.report_size == 1 && local.has_range &&
+                    local.usage_min < 0xE0) {
+                    result.layout.key_bitmap_bit_offset = base;
+                    result.layout.key_bitmap_usage_min =
+                        static_cast<uint16_t>(local.usage_min);
+                    result.layout.key_bitmap_count =
+                        static_cast<uint16_t>(std::min<uint32_t>(
+                            global.report_count,
+                            local.usage_max - local.usage_min + 1));
+                    result.layout.key_bitmap_valid = true;
+                }
+            }
+        }
+        offsets[global.report_id] = static_cast<uint16_t>(base + width);
+        local.clear();
+    }
+
+    if (!selected_report ||
+        (!result.layout.key_array_valid &&
+         !result.layout.key_bitmap_valid)) {
+        result.status = ParseStatus::MissingKeyboardInput;
         return result;
     }
     result.layout.report_bits = offsets[result.layout.report_id];

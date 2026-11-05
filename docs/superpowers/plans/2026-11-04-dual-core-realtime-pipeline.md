@@ -205,7 +205,7 @@
 
 - [ ] **Step 3: Document validation status**
 
-  Record host-test count, image sizes, expected task/core log lines, and that hardware latency/polling validation remains `CHƯA CHẠY` until both boards are flashed and measured. Keep the warning that both protocol-v2 boards must be flashed together.
+  Record host-test count, image sizes, expected task/core log lines, and that hardware latency/polling validation remains `NOT RUN` until both boards are flashed and measured. Keep the warning that both protocol-v2 boards must be flashed together.
 
 - [ ] **Step 4: Review the complete diff**
 

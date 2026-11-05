@@ -6,6 +6,7 @@
 
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 
 #include <array>
@@ -17,6 +18,7 @@ public:
     esp_err_t start(bool enable_bypass_button = true);
     void on_packet(const mouse_bridge::MouseReport& report, uint32_t sequence,
                    uint64_t rx_us);
+    void on_keyboard_report(const mouse_bridge::KeyboardReport& report);
     void on_suspend();
     void on_resume();
     [[nodiscard]] uint32_t timeout_count();
@@ -35,10 +37,12 @@ public:
 private:
     static constexpr size_t kTaskStackWords = 4096 / sizeof(StackType_t);
     static constexpr unsigned kBypassDebounceSamples = 5;
+    static constexpr size_t kKeyboardQueueCapacity = 16;
 
     static void task_entry(void* arg);
     void task();
     void send(const OutputFrame& frame);
+    void send_keyboard(const mouse_bridge::KeyboardReport& report);
     void notify_packet_available();
 
     OutputState state_{};
@@ -47,6 +51,13 @@ private:
     StaticTask_t task_control_{};
     std::array<StackType_t, kTaskStackWords> task_stack_{};
     TaskHandle_t task_handle_{};
+    QueueHandle_t keyboard_queue_{};
+    StaticQueue_t keyboard_queue_control_{};
+    std::array<uint8_t, kKeyboardQueueCapacity *
+                            sizeof(mouse_bridge::KeyboardReport)>
+        keyboard_queue_storage_{};
+    mouse_bridge::KeyboardReport last_keyboard_{};
+    portMUX_TYPE keyboard_lock_ = portMUX_INITIALIZER_UNLOCKED;
     uint64_t pending_stage_rx_us_{};
     bool bypass_button_enabled_{true};
     bool bypass_{};

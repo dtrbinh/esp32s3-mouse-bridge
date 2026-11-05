@@ -155,7 +155,7 @@ git commit -m "feat: add ble-only ws2812 status"
 
 **Interfaces:**
 - Consumes: status priority, timings, profile palette, and built image from Tasks 1-3.
-- Produces: visible-state reference and hardware checks that remain `CHƯA CHẠY` until measured.
+- Produces: visible-state reference and hardware checks that remain `NOT RUN` until measured.
 
 - [ ] **Step 1: Document visible states and brightness**
 
@@ -163,7 +163,7 @@ Document yellow 300 ms scan, green 2 s connected pass-through, solid profile col
 
 - [ ] **Step 2: Add hardware validation rows**
 
-Add all three state priorities, 14 profile colors, BOOT transition response, reconnect/bond-clear yellow response, and a 30-minute temperature check as `CHƯA CHẠY`.
+Add all three state priorities, 14 profile colors, BOOT transition response, reconnect/bond-clear yellow response, and a 30-minute temperature check as `NOT RUN`.
 
 - [ ] **Step 3: Run final verification**
 

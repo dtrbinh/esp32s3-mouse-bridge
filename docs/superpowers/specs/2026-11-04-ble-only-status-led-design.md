@@ -105,7 +105,7 @@ Firmware verification builds both `apps/ble_only` and the shared `apps/input`
 BLE client, confirms every new application task is statically allocated and
 pinned, and preserves CPU1 for the report/TinyUSB/HID fast path.
 
-Hardware validation remains `CHƯA CHẠY` until checked on the user's board:
+Hardware validation remains `NOT RUN` until checked on the user's board:
 yellow fast scan, green 2-second connected pass-through blink, 14 solid profile
 colors, immediate state changes from BOOT actions, and acceptable temperature
 after at least 30 minutes.

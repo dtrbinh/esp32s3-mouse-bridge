@@ -1,86 +1,87 @@
-# Dual ESP32-S3 Mouse Bridge
+# ESP32-S3 Mouse Bridge
 
-Hai firmware ESP-IDF cho hai bo ESP32-S3. Bản BLE-only hiện được cấu hình cho
-biến thể **N8R8: flash 8 MB + Octal PSRAM 8 MB**:
+Single-board ESP32-S3 N8R8 firmware that receives input from a Bluetooth Low
+Energy mouse and exposes it to a computer as USB HID. The board's native USB-C
+port supplies power and carries USB output, so no second board, SPI wiring, or
+external USB Host circuit is required.
 
-- `apps/input`: nhận chuột dây hoặc receiver 2.4 GHz bằng USB Host, hoặc chuột BLE HID; chuẩn hóa report và gửi qua SPI.
-- `apps/output`: nhận SPI và xuất USB HID mouse sang máy tính với endpoint interval 1 ms.
+## Features
 
-Ngoài cặp firmware chính, `apps/ble_only` là bản test độc lập cho **một bo**:
-nhận chuột BLE, chạy đủ 14 profile/mod và xuất USB HID trực tiếp qua USB-C
-onboard. Bản này không khởi tạo USB Host hoặc SPI.
+- BLE Central/HOGP discovery, pairing, bonding, and automatic reconnection for
+  generic BLE mice.
+- A captive configuration portal at `192.168.4.1`; unnamed devices are hidden.
+- Saved-device states shown as `Connected`, `Ready`, or `Offline`, with Connect,
+  Disconnect, and Delete actions.
+- Wi-Fi and the web server shut down after the BLE connection is validated.
+- Composite USB HID Mouse + Keyboard output. Mouse side buttons mapped by the
+  vendor software to keys such as `Q` and `E` retain press, hold, and release.
+- Correct forwarding of X/Y motion, wheel, pan, and button state without
+  converting held buttons into clicks or duplicating releases.
+- Seven non-blocking movement profiles that emit continuous motion while the
+  left mouse button is held.
+- The realtime pipeline runs on CPU1; BLE, portal, and management tasks run on
+  CPU0.
 
-Pipeline hoàn chỉnh:
+## Hardware
 
-```text
-USB Host / BLE HOGP → source arbiter → profile engine → SPI 10 MHz
-→ failsafe → TinyUSB HID mouse thích nghi 125–1000 Hz
-```
+- ESP32-S3 N8R8: 8 MB flash and 8 MB Octal PSRAM.
+- Onboard USB-C connected directly to the computer.
+- BOOT/GPIO0 for profile and portal controls.
+- Onboard WS2812 on GPIO21 by default.
 
-Firmware dùng cả hai nhân. Trên bo input, BLE và tác vụ bảo trì chạy ở CPU0; USB Host → profile → SPI chạy theo sự kiện ở CPU1. Trên bo output, SPI nhận/giải mã chạy ở CPU0; TinyUSB và HID scheduler chạy ở CPU1. USB descriptor vẫn quảng bá `bInterval=1 ms`, còn report thành công thực tế bám cadence đầu vào.
+GPIO19 and GPIO20 carry native USB D- and D+ internally to the USB-C connector.
+No additional wiring to these pins is needed or recommended for BLE input.
 
-## Cảnh báo nguồn và USB
+## Build and test
 
-Bo input dùng GPIO19 (D-) và GPIO20 (D+) cho cổng USB Host ngoài. Không cắm cổng USB-C onboard của bo input vào máy tính khi cổng Host ngoài đang hoạt động. VBUS của chuột phải lấy từ nguồn 5 V có giới hạn dòng/load switch; không cấp từ GPIO. Hai bo phải chung GND.
-
-## SPI giữa hai bo
-
-| Tín hiệu | GPIO |
-|---|---:|
-| SCLK | 4 |
-| MOSI | 5 |
-| MISO | 6 |
-| CS | 7 |
-| READY | 8 |
-
-## Toolchain
-
-Yêu cầu ESP-IDF v6.0.3 và CMake 3.20+. Sau khi export môi trường ESP-IDF:
+The project uses ESP-IDF 6.0.3:
 
 ```bash
-idf.py -C apps/input set-target esp32s3
-idf.py -C apps/input build
-idf.py -C apps/output set-target esp32s3
-idf.py -C apps/output build
-idf.py -C apps/ble_only set-target esp32s3
+export IDF_TOOLS_PATH="$PWD/.toolchains/idf-tools"
+source .toolchains/esp-idf/export.sh
 idf.py -C apps/ble_only build
 ```
 
-Unit test portable không cần ESP-IDF:
+Run portable host tests without a board:
 
 ```bash
-cmake -S host-tests -B build/host
-cmake --build build/host
-ctest --test-dir build/host --output-on-failure
+cmake -S host-tests -B host-tests/build -DCMAKE_BUILD_TYPE=Release
+cmake --build host-tests/build
+ctest --test-dir host-tests/build --output-on-failure
 ```
 
-Xem [wiring](docs/wiring.md), [bring-up](docs/bringup.md) và [validation](docs/validation.md) trước khi cấp nguồn hoặc nối phần cứng.
-
-## Profile và diagnostics
-
-Profile engine mặc định bật. Nút chuột 4/5 chọn profile 1/2; các profile 1–14 có thể chọn làm mặc định qua `CONFIG_MOUSE_BRIDGE_DEFAULT_PROFILE`. Giữ BOOT trên bo output để bypass chuyển động sinh nhưng vẫn giữ pass-through vật lý.
-
-Trong firmware một bo `ble_only`, BOOT nhấn dưới 700 ms chuyển profile, giữ
-1,5–4,999 giây rồi thả để bật/tắt mod, và giữ đủ 5 giây để mở portal chọn
-chuột mà không xóa lịch sử/bond.
-Khoảng 700–1.499 ms cố ý không thực hiện hành động.
-
-Khi chưa có chuột đã chọn, board tạo Wi-Fi mở `MouseBridge-Setup-XXXX` và mở
-captive portal tại `192.168.4.1`. Trang có hai phần: thiết bị đã lưu (thiết bị
-đang kết nối ở đầu) và thiết bị gần đây; hỗ trợ Connect, Disconnect, Forget và
-đóng cấu hình. AP chỉ dùng cục bộ, không có Internet, và tắt hoàn toàn sau 3
-giây khi kết nối đã được xác thực.
-
-WS2812 onboard GPIO21 báo trạng thái ở giới hạn tổng RGB 10%: vàng nhấp nháy
-300 ms khi đang scan/portal, xanh lá nhấp nháy 2 giây khi đã kết nối nhưng mod tắt,
-và sáng liên tục bằng màu riêng của profile 1–14 khi mod bật.
-
-Hai firmware in snapshot `MB_DIAG` mỗi 5 giây. Decoder:
+Flash through the serial port that appears while the board is in download mode:
 
 ```bash
-python3 tools/decode_diagnostics.py --latest input.log output.log
+idf.py -C apps/ble_only -p /dev/cu.usbmodemXXXX flash
 ```
 
-Chi tiết trình tự an toàn, nguồn Host VBUS và các ca kiểm tra phần cứng nằm trong ba tài liệu phía trên.
+After reset, the native serial port may disappear when USB re-enumerates as
+`Adaptive HID Mouse Bridge`.
 
-Giao thức SPI hiện là version 2, packet 34 byte. Luôn flash cả hai firmware cùng commit; không ghép một bo chạy firmware cũ với một bo chạy firmware mới.
+## BOOT controls
+
+| Action | Result |
+|---|---|
+| Press for less than 700 ms | Select profile 1 through 7, then wrap to 1 |
+| Hold for 700–1,499 ms | No action |
+| Hold for 1.5–4.999 seconds, then release | Enable or disable movement profiles |
+| Hold for at least 5 seconds | Open the captive portal without changing the profile state |
+
+## Status LED
+
+| State | LED |
+|---|---|
+| Scanning, reconnecting, or portal open | Fast yellow blink |
+| Connected with profiles disabled | Slow green blink with a 2-second period |
+| Connected with profiles enabled | Steady profile color |
+
+The brightness limiter uses 30% of the previous color level, with a total
+`R+G+B ≤ 23`.
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Build, flash, and operation](docs/bringup.md)
+- [Hardware connections](docs/wiring.md)
+- [Validation checklist](docs/validation.md)

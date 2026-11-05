@@ -9,6 +9,7 @@
 
 struct BleNearbyDevice {
     BlePeerAddress address{};
+    std::optional<BlePeerAddress> resolved_identity{};
     std::array<char, 33> name{};
     int8_t rssi{};
     std::optional<uint16_t> appearance{};
@@ -27,6 +28,9 @@ public:
     static constexpr uint32_t kStaleAfterMs = 15'000;
 
     void observe(const BleAdvertisement& advertisement, uint32_t now_ms);
+    void observe(const BleAdvertisement& advertisement,
+                 std::optional<BlePeerAddress> resolved_identity,
+                 uint32_t now_ms);
     [[nodiscard]] BleNearbySnapshot snapshot(uint32_t now_ms) const;
     [[nodiscard]] size_t active_count(uint32_t now_ms) const;
     void clear();

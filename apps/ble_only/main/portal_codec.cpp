@@ -135,11 +135,30 @@ void write_address(Writer& writer, const BlePeerAddress& address) {
     }
 }
 
-bool is_saved(const PortalView& view, BlePeerAddress address) {
+BlePeerAddress stable_address(const BleNearbyDevice& device) {
+    return normalize_ble_address(
+        device.resolved_identity.value_or(device.address));
+}
+
+bool is_saved(const PortalView& view, const BleNearbyDevice& nearby) {
+    const BlePeerAddress address = stable_address(nearby);
     for (size_t i = 0; i < view.saved.count; ++i) {
-        if (view.saved.devices[i].identity == address) return true;
+        if (normalize_ble_address(view.saved.devices[i].identity) == address) {
+            return true;
+        }
     }
     return false;
+}
+
+const BleNearbyDevice* find_nearby(const PortalView& view,
+                                   BlePeerAddress identity) {
+    identity = normalize_ble_address(identity);
+    for (size_t i = 0; i < view.nearby.count; ++i) {
+        if (stable_address(view.nearby.devices[i]) == identity) {
+            return &view.nearby.devices[i];
+        }
+    }
+    return nullptr;
 }
 
 int hex_value(char value) {
@@ -195,6 +214,15 @@ std::optional<size_t> write_portal_json(const PortalView& view,
         writer.number(device.identity.type);
         writer.append(",\"connected\":");
         writer.boolean(device.connected);
+        const auto* nearby = find_nearby(view, device.identity);
+        writer.append(",\"inRange\":");
+        writer.boolean(device.connected || nearby != nullptr);
+        writer.append(",\"rssi\":");
+        if (nearby != nullptr) {
+            writer.number(nearby->rssi);
+        } else {
+            writer.append("null");
+        }
         writer.append("}");
     }
     writer.append("],\"nearby\":[");
@@ -214,7 +242,7 @@ std::optional<size_t> write_portal_json(const PortalView& view,
         writer.append(",\"hid\":");
         writer.boolean(device.advertises_hid);
         writer.append(",\"saved\":");
-        writer.boolean(is_saved(view, device.address));
+        writer.boolean(is_saved(view, device));
         writer.append(",\"busy\":");
         writer.boolean(view.setup.attempt == device.address);
         writer.append("}");

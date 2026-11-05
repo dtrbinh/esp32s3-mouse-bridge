@@ -158,7 +158,7 @@ void BleDeviceManager::on_advertisement(
     Guard guard(lock_);
     BleAdvertisement normalized = advertisement;
     normalized.address = normalize_ble_address(normalized.address);
-    catalog_.observe(normalized, now_ms);
+    catalog_.observe(normalized, resolved_identity, now_ms);
     const auto selected = history_.selected();
     const auto setup = setup_.snapshot();
     if (setup.connected.has_value() || setup.attempt.has_value()) {

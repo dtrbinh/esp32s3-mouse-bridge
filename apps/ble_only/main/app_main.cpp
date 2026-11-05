@@ -99,6 +99,11 @@ void wake_pipeline(void* context) {
     if (handle != nullptr) xTaskNotifyGive(handle);
 }
 
+void forward_keyboard(void* context,
+                      const mouse_bridge::KeyboardReport& report) {
+    static_cast<UsbMouseDevice*>(context)->on_keyboard_report(report);
+}
+
 void pipeline_task(void* arg) {
     auto& context = *static_cast<PipelineContext*>(arg);
     ESP_LOGI("ble_only_pipeline", "core=%d", xPortGetCoreID());
@@ -278,6 +283,7 @@ extern "C" void app_main() {
     device_manager.start(bootstrap_ms);
 
     ble_mouse.set_selection_delegate(&device_manager);
+    ble_mouse.set_keyboard_callback(forward_keyboard, &usb_mouse);
     ESP_ERROR_CHECK(ble_mouse.start());
     ESP_ERROR_CHECK(boot_control.start(pipeline_handle));
     ESP_ERROR_CHECK(xTaskCreateStaticPinnedToCore(

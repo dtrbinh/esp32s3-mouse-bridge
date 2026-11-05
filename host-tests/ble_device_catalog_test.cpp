@@ -38,6 +38,11 @@ int main() {
     assert(snapshot.devices[0].rssi == -45);
     assert(snapshot.devices[0].last_seen_ms == 1'010);
 
+    const auto stable_identity = address(42);
+    catalog.observe(response, stable_identity, 1'011);
+    snapshot = catalog.snapshot(1'011);
+    assert(snapshot.devices[0].resolved_identity == stable_identity);
+
     // Anonymous advertisements are retained for scan-response merging but
     // never exposed to the portal.
     catalog.observe(advertisement(12, {}, -10), 1'015);

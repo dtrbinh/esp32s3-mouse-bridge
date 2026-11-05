@@ -37,14 +37,15 @@ target_include_directories(hid_parser_test PRIVATE
     ../components/hid_parser/include)
 target_sources(hid_parser_test PRIVATE
     ../components/hid_parser/src/report_descriptor.cpp
-    ../components/hid_parser/src/mouse_decoder.cpp)
+    ../components/hid_parser/src/mouse_decoder.cpp
+    ../components/hid_parser/src/keyboard_decoder.cpp)
 add_test(NAME hid_parser COMMAND hid_parser_test)
 
 add_executable(source_arbiter_test source_arbiter_test.cpp
-    ../apps/input/main/source_arbiter.cpp)
+    ../apps/ble_only/main/source_arbiter.cpp)
 target_compile_features(source_arbiter_test PRIVATE cxx_std_20)
 target_include_directories(source_arbiter_test PRIVATE
-    ../apps/input/main
+    ../apps/ble_only/main
     ../components/mouse_bridge/include)
 add_test(NAME source_arbiter COMMAND source_arbiter_test)
 
@@ -65,18 +66,18 @@ target_include_directories(spi_keepalive_test PRIVATE
 add_test(NAME spi_keepalive COMMAND spi_keepalive_test)
 
 add_executable(output_state_test output_state_test.cpp
-    ../apps/output/main/output_state.cpp)
+    ../apps/ble_only/main/output_state.cpp)
 target_compile_features(output_state_test PRIVATE cxx_std_20)
 target_include_directories(output_state_test PRIVATE
-    ../apps/output/main
+    ../apps/ble_only/main
     ../components/mouse_bridge/include)
 add_test(NAME output_state COMMAND output_state_test)
 
 add_executable(report_scheduler_test report_scheduler_test.cpp
-    ../apps/output/main/report_scheduler.cpp)
+    ../apps/ble_only/main/report_scheduler.cpp)
 target_compile_features(report_scheduler_test PRIVATE cxx_std_20)
 target_include_directories(report_scheduler_test PRIVATE
-    ../apps/output/main
+    ../apps/ble_only/main
     ../components/mouse_bridge/include)
 target_sources(report_scheduler_test PRIVATE
     ../components/mouse_bridge/src/cadence.cpp)
@@ -99,11 +100,6 @@ target_include_directories(ble_only_mode_test PRIVATE
     ../components/profile_engine/include)
 add_test(NAME ble_only_mode COMMAND ble_only_mode_test)
 
-add_executable(ble_bond_reset_test ble_bond_reset_test.cpp)
-target_compile_features(ble_bond_reset_test PRIVATE cxx_std_20)
-target_include_directories(ble_bond_reset_test PRIVATE ../apps/input/main)
-add_test(NAME ble_bond_reset COMMAND ble_bond_reset_test)
-
 add_executable(status_led_model_test status_led_model_test.cpp
     ../apps/ble_only/main/status_led_model.cpp)
 target_compile_features(status_led_model_test PRIVATE cxx_std_20)
@@ -114,24 +110,21 @@ add_executable(ble_device_catalog_test ble_device_catalog_test.cpp
     ../apps/ble_only/main/ble_device_catalog.cpp)
 target_compile_features(ble_device_catalog_test PRIVATE cxx_std_20)
 target_include_directories(ble_device_catalog_test PRIVATE
-    ../apps/ble_only/main
-    ../apps/input/main)
+    ../apps/ble_only/main)
 add_test(NAME ble_device_catalog COMMAND ble_device_catalog_test)
 
 add_executable(ble_device_history_test ble_device_history_test.cpp
     ../apps/ble_only/main/ble_device_history.cpp)
 target_compile_features(ble_device_history_test PRIVATE cxx_std_20)
 target_include_directories(ble_device_history_test PRIVATE
-    ../apps/ble_only/main
-    ../apps/input/main)
+    ../apps/ble_only/main)
 add_test(NAME ble_device_history COMMAND ble_device_history_test)
 
 add_executable(ble_setup_state_test ble_setup_state_test.cpp
     ../apps/ble_only/main/ble_setup_state.cpp)
 target_compile_features(ble_setup_state_test PRIVATE cxx_std_20)
 target_include_directories(ble_setup_state_test PRIVATE
-    ../apps/ble_only/main
-    ../apps/input/main)
+    ../apps/ble_only/main)
 add_test(NAME ble_setup_state COMMAND ble_setup_state_test)
 
 add_executable(portal_codec_test portal_codec_test.cpp
@@ -140,8 +133,7 @@ add_executable(portal_codec_test portal_codec_test.cpp
     ../apps/ble_only/main/ble_device_history.cpp)
 target_compile_features(portal_codec_test PRIVATE cxx_std_20)
 target_include_directories(portal_codec_test PRIVATE
-    ../apps/ble_only/main
-    ../apps/input/main)
+    ../apps/ble_only/main)
 add_test(NAME portal_codec COMMAND portal_codec_test)
 
 add_executable(captive_dns_codec_test captive_dns_codec_test.cpp
@@ -158,8 +150,7 @@ add_executable(ble_device_manager_test ble_device_manager_test.cpp
     ../apps/ble_only/main/ble_setup_state.cpp)
 target_compile_features(ble_device_manager_test PRIVATE cxx_std_20)
 target_include_directories(ble_device_manager_test PRIVATE
-    ../apps/ble_only/main
-    ../apps/input/main)
+    ../apps/ble_only/main)
 add_test(NAME ble_device_manager COMMAND ble_device_manager_test)
 
 add_executable(portal_lifecycle_test portal_lifecycle_test.cpp

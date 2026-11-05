@@ -1,150 +1,97 @@
-# Bring-up an toàn
+# Build, Flash, and Operation
 
-## 1. Build và kiểm tra trên máy phát triển
+## 1. Requirements
 
-Dự án dùng ESP-IDF 6.0.3. Sau khi export môi trường IDF:
+- ESP32-S3 N8R8 with 8 MB flash and 8 MB Octal PSRAM.
+- A data-capable USB-C cable.
+- ESP-IDF 6.0.3.
+- A mouse with BLE HID mode.
+
+The image uses a 3 MB application partition and is not intended for boards with
+smaller flash devices.
+
+## 2. Run host tests
 
 ```bash
-cmake -S host-tests -B build/host
-cmake --build build/host
-ctest --test-dir build/host --output-on-failure
-idf.py -C apps/input build
-idf.py -C apps/output build
+cmake -S host-tests -B host-tests/build -DCMAKE_BUILD_TYPE=Release
+cmake --build host-tests/build
+ctest --test-dir host-tests/build --output-on-failure
+```
+
+## 3. Build the firmware
+
+```bash
+export IDF_TOOLS_PATH="$PWD/.toolchains/idf-tools"
+source .toolchains/esp-idf/export.sh
 idf.py -C apps/ble_only build
 ```
 
-## Test BLE trên một bo
+The output image is `apps/ble_only/build/esp32s3-mouse-bridge.bin`.
 
-Firmware `apps/ble_only` không cần bo thứ hai, dây SPI hoặc nguồn VBUS Host.
-Cắm USB-C onboard trực tiếp vào PC; cáp này vừa cấp nguồn vừa là USB HID output.
-Bản build hiện tại dành cho ESP32-S3 **N8R8**, dùng flash 8 MB, Octal PSRAM và
-partition ứng dụng 3 MB. Không flash image này lên biến thể có flash nhỏ hơn.
+## 4. Enter download mode and flash
 
-Lần đầu hoặc khi cần vào download mode, giữ BOOT, nhấn rồi thả RESET, sau đó
-thả BOOT. Xác định cổng vừa xuất hiện và flash:
-
-```bash
-idf.py -C apps/ble_only -p /dev/cu.usbmodem_BLE_ONLY flash
-```
-
-Sau reset, cổng download có thể biến mất vì cùng USB-C đã chuyển sang thiết bị
-HID `Adaptive HID Mouse Bridge`; đây là hành vi bình thường.
-
-### Chọn chuột bằng captive portal
-
-Ở lần boot đầu, board chưa có thiết bị đã chọn nên mở ngay Wi-Fi
-`MouseBridge-Setup-XXXX` (`XXXX` là hậu tố MAC):
-
-1. Đặt Freewolf X7 hoặc chuột khác vào BLE pairing mode.
-2. Kết nối điện thoại/laptop vào Wi-Fi trên. AP mở, chỉ hoạt động cục bộ và
-   không cung cấp Internet.
-3. Trang cấu hình thường tự mở. Nếu hệ điều hành không hiện captive window,
-   truy cập `http://192.168.4.1/`.
-4. Phần **Đã kết nối trước đây** xếp thiết bị đang kết nối lên đầu. Phần
-   **Thiết bị ở gần** hiển thị kết quả scan, kể cả thiết bị không quảng bá UUID
-   HOGP `0x1812`.
-5. Chọn Connect. Firmware ngắt peer cũ trước nếu cần, kết nối đúng địa chỉ đã
-   chọn, kiểm tra HID report map, rồi lưu identity đã resolve.
-6. Sau khi xác thực thành công, trang báo thành công trong 3 giây rồi dừng
-   HTTP, DNS, AP và Wi-Fi driver. Kiểm tra con trỏ, nút, wheel và pan.
-
-Disconnect bỏ lựa chọn hiện tại nhưng giữ lịch sử/bond. Forget xóa thiết bị
-khỏi lịch sử và xóa bond tương ứng. `Đóng cấu hình` chỉ hợp lệ khi vẫn có một
-target đã lưu hoặc đang kết nối. Nếu có target đã chọn nhưng reconnect thất
-bại, portal tự mở sau 10 giây. Giữ BOOT đủ 5 giây có thể mở portal thủ công bất
-kỳ lúc nào mà không xóa lịch sử.
-
-BOOT có ba hành động, mỗi lần nhấn chỉ phát tối đa một hành động:
-
-- Nhấn dưới 700 ms: chuyển profile 1 → 2 → … → 14 → 1.
-- Giữ từ 700 ms đến dưới 1,5 giây: không làm gì.
-- Giữ ít nhất 1,5 giây nhưng dưới 5 giây rồi thả: bật/tắt toàn bộ mod.
-- Giữ đủ 5 giây: mở portal chọn chuột; không xóa bond/lịch sử và khi thả không
-  đổi profile/mod.
-
-Profile/mod khởi động ở trạng thái bật. Khi mod tắt, X/Y, nút, wheel và pan đi
-thẳng từ chuột BLE sang PC. Vì USB-C onboard đang được TinyUSB HID chiếm dụng,
-`idf.py monitor` trên cùng cổng sẽ ngắt sau khi app khởi động. Muốn xem log
-`MB_DIAG` liên tục, dùng UART0 ngoài; việc điều khiển chuột không cần UART.
-
-WS2812 onboard dùng GPIO21 và có ba trạng thái ưu tiên:
-
-| Trạng thái | LED |
-|---|---|
-| Đang scan, reconnect hoặc portal đang mở | Vàng, 150 ms sáng / 150 ms tắt |
-| Đã kết nối, mod tắt | Xanh lá, 1 giây sáng / 1 giây tắt |
-| Đã kết nối, mod bật | Sáng liên tục theo màu profile |
-
-Màu profile 1–14 lần lượt là: đỏ, vermilion, cam, rose, hồng, tím, chàm,
-xanh dương, xanh da trời, cyan, xanh ngọc, trắng lạnh, trắng ấm và magenta.
-Tất cả màu dùng chung giới hạn `R+G+B ≤ 76`, tương đương 10% tổng công suất
-ba kênh. Nếu driver LED lỗi, firmware chỉ ghi log và BLE/USB HID vẫn tiếp tục.
-GPIO có thể đổi bằng `CONFIG_BLE_ONLY_LED_GPIO` nếu dùng biến thể board khác.
-
-Phân bố mong đợi: `nimble_host`, `ble_mouse`, `ble_only_setup`, Wi-Fi/DNS,
-`ble_only_boot`, `status_led` và `ble_only_diag` ở core 0;
-`ble_only_pipeline`, `usb_mouse` và TinyUSB ở core 1. Khi portal đã đóng, Wi-Fi
-phải biến mất và không còn coexistence traffic trên đường HID.
-
-## 2. Flash từng bo riêng biệt
-
-Chưa đấu SPI và chưa bật nguồn Host VBUS. Cắm đúng một bo mỗi lần:
+1. Hold BOOT.
+2. Press and release RESET.
+3. Release BOOT.
+4. Identify the newly visible `/dev/cu.usbmodem*` port.
+5. Flash through that exact port:
 
 ```bash
-idf.py -C apps/input -p /dev/cu.USB_INPUT flash monitor
-idf.py -C apps/output -p /dev/cu.USB_OUTPUT flash monitor
+idf.py -C apps/ble_only -p /dev/cu.usbmodemXXXX flash
 ```
 
-Thay tên cổng serial bằng cổng thực tế. Thoát monitor bằng `Ctrl+]`.
+After reset, the same USB-C port switches to composite USB HID Mouse + Keyboard.
+The native serial port may disappear; this is expected and does not indicate a
+flash failure.
 
-## 3. Kiểm tra bo output độc lập
+## 5. Connect a BLE mouse
 
-Kết nối riêng bo output với PC. PC phải nhận `Adaptive HID Mouse Bridge`; con trỏ không tự di chuyển và không có nút bị giữ. Firmware phát release-all khi khởi động và sau USB resume.
+When no valid target is available, the board creates the open
+`MouseBridge-Setup-XXXX` access point:
 
-## 4. Đấu liên kết hai bo
+1. Put the mouse into BLE pairing mode.
+2. Join the access point from a phone or computer.
+3. Wait for the captive page to open or visit `http://192.168.4.1/`.
+4. Select the mouse under **Nearby devices** and press **Connect**.
+5. Wait for **Connected**; the access point shuts down after about 3 seconds.
 
-1. Rút USB và tắt tất cả nguồn.
-2. Nối GND trước, sau đó GPIO4–GPIO8 theo [wiring.md](wiring.md).
-3. Kiểm tra thông mạch và chắc chắn không chập 5 V với 3,3 V.
-4. Cấp nguồn bo input bằng đường nguồn dành cho hệ thống, vẫn để Host VBUS tắt.
-5. Cắm bo output vào PC và xác nhận trạng thái release-all.
-6. Bật nguồn 5 V đã bảo vệ cho cổng USB-A Host.
-7. Cuối cùng mới cắm chuột dây hoặc receiver 2.4 GHz vào USB-A.
+The portal displays only advertisements that include a name. The
+**Previously connected** list uses these states:
 
-Không cắm USB-C onboard của bo input trong khi Host VBUS đang hoạt động.
+- `Connected`: currently connected.
+- `Ready`: saved and visible in the current scan range.
+- `Offline`: saved but not currently visible.
 
-## 5. BLE
+Delete requires a second confirmation and removes both device history and its
+BLE bond. If a saved target cannot reconnect, the portal reopens after the
+fallback period. Hold BOOT for at least 5 seconds to open the portal manually.
 
-Để chuột ở BLE pairing mode, không cắm USB/receiver. Bo input quét HID Service `0x1812`, bond một peer và yêu cầu interval 7,5 ms. Muốn thay chuột đã bond, giữ BOOT trên bo input để xóa bond rồi pairing lại.
+## 6. Verify HID behavior
 
-## 6. Profile và bypass
+After connecting:
 
-Profile engine mặc định bật; `CONFIG_MOUSE_BRIDGE_DEFAULT_PROFILE` chọn profile khởi động từ 1 đến 14. Nút chuột 4 chọn profile 1, nút chuột 5 chọn profile 2. Profile chỉ sinh chuyển động khi cả nút trái và phải đang giữ.
+- Motion, left/right/middle clicks, wheel, and pan must work.
+- Holding a mouse button must not be converted into a short click.
+- Press and release events must not be duplicated.
+- Side buttons mapped by vendor software to `Q` or `E` must forward complete
+  keyboard press, hold, and release events through composite USB HID.
+- With profiles enabled, holding the left button must generate continuous
+  profile motion without jumping when the button is released.
 
-Giữ BOOT trên bo output để loại chuyển động sinh bởi profile. Release BOOT để trở lại chế độ profile. Bypass không được làm mất chuyển động vật lý hay trạng thái nút.
+## 7. BOOT and LED behavior
 
-## 7. Diagnostics
+A short BOOT press selects one of seven profiles. Hold for 1.5–4.999 seconds
+and release to toggle profiles; hold for at least 5 seconds to open the portal.
+The 700–1,499 ms interval is intentionally a no-action region.
 
-Mỗi bo in một dòng `MB_DIAG` tối đa mỗi 5 giây, ngoài đường report 1 ms. Giải mã log trực tiếp:
+The LED blinks yellow during scanning or portal activity, blinks green with a
+2-second period while connected with profiles disabled, and shows a steady
+profile color when profiles are enabled. The brightness limiter enforces
+`R+G+B ≤ 23`.
 
-```bash
-idf.py -C apps/input -p /dev/cu.USB_INPUT monitor | python3 tools/decode_diagnostics.py
-```
+## 8. Realtime logs
 
-Hoặc đọc hai file log và lấy mẫu cuối mỗi bo:
-
-```bash
-python3 tools/decode_diagnostics.py --latest input.log output.log
-```
-
-`usb_interval_us` trên input là khoảng cách report đã lọc vì USB Host HID API không công khai `bInterval`; trên output, đây là cadence HID đang áp dụng. Endpoint vẫn quảng bá `bInterval=1 ms`, nhưng trả NAK ở các USB frame không dùng để có thể đổi runtime mà không reconnect. `ble_interval_units` dùng đơn vị BLE 1,25 ms.
-
-Output tự bám input trong khoảng 125–1000 Hz. Report chuyển động/nút mới luôn được gửi ở USB frame 1 ms kế tiếp; chỉ report duy trì trạng thái được giảm nhịp. BLE dùng connection interval đã thương lượng, ví dụ 7,5 ms sẽ xen kẽ khoảng cách 8 ms và 7 ms để không trôi pha dài hạn.
-
-Sau report đầu tiên, bo input gửi keepalive trạng thái không có motion mỗi 2 ms khi chuột không phát report mới. Vì vậy nút đang giữ không bị timeout ở chế độ BLE; output chỉ kích hoạt failsafe khi chính liên kết SPI/bo input im lặng.
-
-### Kiểm tra phân bố hai nhân
-
-Ngay sau boot, bo input phải báo `input_pipeline`, `usb_events`, `mouse_input` và `spi_producer` trên core 1. `nimble_host`, `ble_mouse`, `bond_button` và `diagnostics` phải chạy trên core 0. Report thật đánh thức pipeline ngay; timeout 1 ms chỉ còn dùng cho BLE fallback và watchdog.
-
-Bo output phải báo `spi_consumer` và `diagnostics` trên core 0, `usb_mouse` trên core 1. TinyUSB cũng được cấu hình cố định ở core 1. `max_link_latency_us` trên output đo từ lúc nhận xong packet SPI đến lần HID scheduler đầu tiên xử lý packet đó.
+TinyUSB HID takes ownership of native USB after boot, so `idf.py monitor` cannot
+remain attached to the same port. For continuous logs, connect an external
+3.3 V UART adapter to UART0. The firmware prints `MB_DIAG` every 5 seconds, but
+HID bridging does not depend on UART.

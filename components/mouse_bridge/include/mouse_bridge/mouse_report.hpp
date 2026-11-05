@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 namespace mouse_bridge {
@@ -48,6 +49,15 @@ struct MouseReport {
     uint16_t poll_interval_us{};
 
     constexpr bool operator==(const MouseReport&) const = default;
+};
+
+// USB boot-keyboard compatible state. A held key remains present until a
+// later report removes it; no synthetic key repeats are required.
+struct KeyboardReport {
+    uint8_t modifiers{};
+    std::array<uint8_t, 6> keys{};
+
+    constexpr bool operator==(const KeyboardReport&) const = default;
 };
 
 }  // namespace mouse_bridge

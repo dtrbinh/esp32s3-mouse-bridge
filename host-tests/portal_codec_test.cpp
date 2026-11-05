@@ -27,8 +27,10 @@ int main() {
     view.saved.devices[0].connected = true;
     set_name(view.saved.devices[0].name, "Mouse \"A\"");
     view.saved.devices[1].identity = address(2);
+    set_name(view.saved.devices[1].name, "Mouse B");
     view.nearby.count = 2;
     view.nearby.devices[0].address = address(9, 1);
+    view.nearby.devices[0].resolved_identity = address(1);
     view.nearby.devices[0].rssi = -37;
     view.nearby.devices[0].advertises_hid = true;
     set_name(view.nearby.devices[0].name, "Freewolf\\X7");
@@ -44,10 +46,12 @@ int main() {
     assert(json.find("Mouse \\\"A\\\"") != std::string::npos);
     assert(json.find("Freewolf\\\\X7") != std::string::npos);
     assert(json.find("\"connected\":true") != std::string::npos);
+    assert(json.find("\"inRange\":true") != std::string::npos);
+    assert(json.find("\"inRange\":false") != std::string::npos);
     assert(json.find("\"rssi\":-37") != std::string::npos);
     assert(json.find("\"address\":\"09:05:04:03:02:01\"") !=
            std::string::npos);
-    assert(json.find("02:05:04:03:02:01") == std::string::npos);
+    assert(json.find("02:05:04:03:02:01") != std::string::npos);
     assert(json.find("0A:05:04:03:02:01") == std::string::npos);
 
     std::array<char, 32> tiny{};
@@ -68,9 +72,13 @@ int main() {
                 .has_value());
     assert(!parse_peer_form(std::string(97, 'x')).has_value());
 
-    assert(kPortalPage.find("Đã kết nối trước đây") != std::string_view::npos);
-    assert(kPortalPage.find("Thiết bị ở gần") != std::string_view::npos);
+    assert(kPortalPage.find("Previously connected") != std::string_view::npos);
+    assert(kPortalPage.find("Nearby devices") != std::string_view::npos);
     assert(kPortalPage.find("/api/state") != std::string_view::npos);
-    assert(kPortalPage.find("Đóng cấu hình") != std::string_view::npos);
+    assert(kPortalPage.find("Close setup") != std::string_view::npos);
+    assert(kPortalPage.find("Connected") != std::string_view::npos);
+    assert(kPortalPage.find("Ready") != std::string_view::npos);
+    assert(kPortalPage.find("Offline") != std::string_view::npos);
+    assert(kPortalPage.find("confirm(") == std::string_view::npos);
     assert(kPortalPage.find("https://") == std::string_view::npos);
 }

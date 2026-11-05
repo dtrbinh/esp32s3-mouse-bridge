@@ -87,6 +87,12 @@ bool format_ble_address(const BlePeerAddress& address,
 
 void BleDeviceCatalog::observe(const BleAdvertisement& advertisement,
                                uint32_t now_ms) {
+    observe(advertisement, std::nullopt, now_ms);
+}
+
+void BleDeviceCatalog::observe(
+    const BleAdvertisement& advertisement,
+    std::optional<BlePeerAddress> resolved_identity, uint32_t now_ms) {
     size_t index = count_;
     for (size_t i = 0; i < count_; ++i) {
         if (devices_[i].address == advertisement.address) {
@@ -129,6 +135,11 @@ void BleDeviceCatalog::observe(const BleAdvertisement& advertisement,
     }
 
     auto& device = devices_[index];
+    device.resolved_identity = resolved_identity.has_value()
+                                   ? std::optional<BlePeerAddress>(
+                                         normalize_ble_address(
+                                             *resolved_identity))
+                                   : device.resolved_identity;
     if (!advertisement.name.empty()) {
         copy_display_name(advertisement.name, device.name);
     }

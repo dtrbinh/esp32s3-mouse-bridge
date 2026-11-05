@@ -35,11 +35,22 @@ struct __attribute__((packed)) BootMouseReport {
     int8_t y;
 };
 static_assert(sizeof(BootMouseReport) == 3);
+
+struct __attribute__((packed)) BootKeyboardReport {
+    uint8_t modifiers;
+    uint8_t reserved;
+    uint8_t keys[6];
+};
+static_assert(sizeof(BootKeyboardReport) == 8);
 }
 
 esp_err_t UsbMouseDevice::start(bool enable_bypass_button) {
     device_instance = this;
     bypass_button_enabled_ = enable_bypass_button;
+    keyboard_queue_ = xQueueCreateStatic(
+        kKeyboardQueueCapacity, sizeof(mouse_bridge::KeyboardReport),
+        keyboard_queue_storage_.data(), &keyboard_queue_control_);
+    if (keyboard_queue_ == nullptr) return ESP_ERR_NO_MEM;
     esp_err_t result = ESP_OK;
     if (bypass_button_enabled_) {
         gpio_config_t button{};
@@ -95,6 +106,24 @@ void UsbMouseDevice::on_packet(const mouse_bridge::MouseReport& report,
     notify_packet_available();
 }
 
+void UsbMouseDevice::on_keyboard_report(
+    const mouse_bridge::KeyboardReport& report) {
+    portENTER_CRITICAL(&keyboard_lock_);
+    if (report == last_keyboard_) {
+        portEXIT_CRITICAL(&keyboard_lock_);
+        return;
+    }
+    last_keyboard_ = report;
+    portEXIT_CRITICAL(&keyboard_lock_);
+
+    if (xQueueSend(keyboard_queue_, &report, 0) != pdTRUE) {
+        mouse_bridge::KeyboardReport discarded{};
+        (void)xQueueReceive(keyboard_queue_, &discarded, 0);
+        (void)xQueueSend(keyboard_queue_, &report, 0);
+    }
+    notify_packet_available();
+}
+
 void UsbMouseDevice::on_suspend() {
     portENTER_CRITICAL(&state_lock_);
     suspended_.store(true, std::memory_order_relaxed);
@@ -111,6 +140,13 @@ void UsbMouseDevice::on_resume() {
     scheduler_.reset();
     portEXIT_CRITICAL(&state_lock_);
     resume_count_.fetch_add(1, std::memory_order_relaxed);
+    mouse_bridge::KeyboardReport keyboard{};
+    portENTER_CRITICAL(&keyboard_lock_);
+    keyboard = last_keyboard_;
+    portEXIT_CRITICAL(&keyboard_lock_);
+    if (keyboard_queue_ != nullptr) {
+        (void)xQueueSend(keyboard_queue_, &keyboard, 0);
+    }
     notify_packet_available();
 }
 
@@ -164,6 +200,13 @@ void UsbMouseDevice::task() {
 
         const bool usb_ready = !suspended_.load(std::memory_order_relaxed) &&
                                tud_hid_ready();
+        if (!suspended_.load(std::memory_order_relaxed) &&
+            tud_hid_n_ready(1)) {
+            mouse_bridge::KeyboardReport keyboard{};
+            if (xQueueReceive(keyboard_queue_, &keyboard, 0) == pdTRUE) {
+                send_keyboard(keyboard);
+            }
+        }
         bool report_due = false;
         OutputFrame frame{};
         portENTER_CRITICAL(&state_lock_);
@@ -191,6 +234,15 @@ void UsbMouseDevice::task() {
         }
         ESP_ERROR_CHECK(esp_task_wdt_reset());
     }
+}
+
+void UsbMouseDevice::send_keyboard(
+    const mouse_bridge::KeyboardReport& keyboard) {
+    BootKeyboardReport report{.modifiers = keyboard.modifiers,
+                              .reserved = 0,
+                              .keys = {}};
+    std::copy(keyboard.keys.begin(), keyboard.keys.end(), report.keys);
+    (void)tud_hid_n_report(1, 0, &report, sizeof(report));
 }
 
 void UsbMouseDevice::send(const OutputFrame& frame) {

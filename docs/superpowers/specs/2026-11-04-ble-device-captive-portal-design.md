@@ -43,21 +43,21 @@ The page is responsive, text-first, and contains no external assets or build
 toolchain. It uses embedded HTML, CSS, and JavaScript and polls JSON state once
 per second rather than keeping a WebSocket open.
 
-The first section, **Đã kết nối trước đây**, lists up to eight saved devices.
+The first section, **Previously connected**, lists up to eight saved devices.
 The currently connected device is sorted first and marked with a green status
 dot. Each row shows the last known name and address. A connected row offers
-**Ngắt kết nối**; an inactive row offers **Kết nối** and **Xóa**. Forgetting a
+**Disconnect**; an inactive row offers **Connect** and **Delete**. Forgetting a
 device removes its history entry and matching NimBLE bond after confirmation.
 
-The second section, **Thiết bị ở gần**, shows live BLE observations sorted by
-RSSI, strongest first. Each row shows name (or `Không rõ tên`), RSSI, address,
-and **Kết nối**. Saved devices may appear in both sections but are visibly
+The second section, **Nearby devices**, shows live BLE observations sorted by
+RSSI, strongest first. Each row shows name (or `Unknown device`), RSSI, address,
+and **Connect**. Saved devices may appear in both sections but are visibly
 marked as saved. Stale nearby entries disappear after 15 seconds. The scan
 cache holds at most 32 devices and evicts the stalest/weakest entry when full.
 
 While a connection attempt is active, only that row is busy and competing
 connect actions are disabled. Empty, scanning, connecting, connected, failed,
-and Wi-Fi-shutdown states all have explicit Vietnamese messages.
+and Wi-Fi-shutdown states all have explicit English messages.
 
 ## BLE selection and validation
 
@@ -93,10 +93,10 @@ opening B. If B fails validation or connection, the portal remains open and A
 remains in saved history for an explicit reconnect; firmware does not silently
 fall back to A.
 
-**Ngắt kết nối** disconnects the current peer and clears the automatic
+**Disconnect** disconnects the current peer and clears the automatic
 reconnect target while retaining its saved metadata and bond. The board stays
 in setup mode until the user explicitly selects a device again. This differs
-from **Xóa**, which also removes saved metadata and the matching NimBLE bond.
+from **Delete**, which also removes saved metadata and the matching NimBLE bond.
 
 ## Firmware architecture
 
